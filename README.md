@@ -1,1 +1,1 @@
-This is the course project for the RL in PKU.
+This is the course project for Reinforcement Learning in PKU.
