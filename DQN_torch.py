@@ -98,7 +98,7 @@ class DQN():
             
         loss = torch.mean(loss)    
         loss.backward()
-        torch.nn.utils.clip_grad_norm(self.policy_net.parameters(), 1)
+        torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 1)
         self.optimizer.step()
     
         # update target network

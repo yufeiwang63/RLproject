@@ -50,8 +50,8 @@ print('----action range---')
 #action_low = env.action_space.low[0].astype(float)
 #action_high = env.action_space.high[0].astype(float)
 
-ounoise = OUNoise(Action_dim, 8, 3 , 0.9995)
-gsnoise = GaussNoise(10,2,0.9995)
+ounoise = OUNoise(Action_dim, 8, 3, 0.9995)
+gsnoise = GaussNoise(10, 2, 0.9995)
 
 
 ## featurization has been proved to be very important to the convergence of mountain car
@@ -60,12 +60,12 @@ After_featurize_state_dim = state_featurize.get_featurized_state_dim()
 
             
 
-def play(agent, num_epoach, Epoach_step, show = False):
+def play(agent, num_epoch, Epoch_step, show = False):
    
     tot_reward = 0
-    for epoach in range(num_epoach):
+    for epoch in range(num_epoch):
         pre_state = env.reset()
-        for step in range(Epoach_step):
+        for step in range(Epoch_step):
             if show:
                 env.render()
             
@@ -73,21 +73,21 @@ def play(agent, num_epoach, Epoach_step, show = False):
             next_state, reward, done, _ = env.step(action)
             tot_reward += reward
             if done:
-                #print('episoids end after ', step + 1, 'time steps')
+                #print('episodes end after ', step + 1, 'time steps')
                 break
             pre_state = next_state
-    return tot_reward / (num_epoach + 0.0)
+    return tot_reward / (num_epoch + 0.0)
 
 
-def train(agent, Train_epoach, Epoach_step, file_name):        
+def train(agent, Train_epoch, Epoch_step, file_name):        
     output_file = open(file_name, 'w')
-    for epoach in range(Train_epoach):
+    for epoch in range(Train_epoch):
         pre_state = env.reset()
         record = []
         acc_reward = 0
        
         
-        for step in range(Epoach_step):
+        for step in range(Epoch_step):
 
             action = agent.action(state_featurize.transfer(pre_state))
           
@@ -100,21 +100,21 @@ def train(agent, Train_epoach, Epoach_step, file_name):
             
             agent.train(state_featurize.transfer(pre_state), action, reward, state_featurize.transfer(next_state), done)
             
-            if done or step == Epoach_step - 1:
-                #print('episoid: ', epoach + 1, 'step: ', step + 1, ' reward is', acc_reward,  file = output_file)
-                #print('episoid: ', epoach + 1, 'step: ', step + 1, ' reward is', acc_reward, )
+            if done or step == Epoch_step - 1:
+                #print('episoid: ', epoch + 1, 'step: ', step + 1, ' reward is', acc_reward,  file = output_file)
+                #print('episoid: ', epoch + 1, 'step: ', step + 1, ' reward is', acc_reward, )
                 break
             
             pre_state = next_state
         
-        if epoach % 100 == 0 and epoach > 0:
+        if epoch % 100 == 0 and epoch > 0:
             #for param in agent.actor_policy_net.parameters():
             #    print(param.data)
-            avr_reward = play(agent, 10,200, True)
-            print('--------------episode ', epoach,  'average reward: ', avr_reward, '---------------', file = output_file)
-            print('--------------episode ', epoach,  'average reward: ', avr_reward, '---------------')
+            avr_reward = play(agent, 10, 200, True)
+            print('--------------episode ', epoch,  'average reward: ', avr_reward, '---------------', file = output_file)
+            print('--------------episode ', epoch,  'average reward: ', avr_reward, '---------------')
             if avr_reward >= 180:
-                print('----- using ', epoach, '  epoaches', file = output_file)
+                print('----- using ', epoch, '  epochs', file = output_file)
                 agent.save_model()
                 break
          
