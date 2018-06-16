@@ -22,8 +22,9 @@ warnings.simplefilter("error", RuntimeWarning)
         
 
 class PPO():    
-    def __init__(self, state_dim, action_dim, action_low, action_high, mem_size, train_batch_size, gamma, actor_lr, critic_lr, 
-                 tau, eps, update_epoach):
+    def __init__(self, state_dim, action_dim, action_low, action_high, mem_size = 40000, \
+       train_batch_size = 32, gamma = 0.99, actor_lr = 1e-4, critic_lr = 1e-3, 
+                 tau = 0.1, eps = 0.2, update_epoach = 10, trajectory_number = 10):
         self.mem_size, self.train_batch_size = mem_size, train_batch_size
         self.gamma, self.actor_lr, self.critic_lr = gamma, actor_lr, critic_lr
         self.global_step = 0
@@ -42,8 +43,9 @@ class PPO():
         self.hard_update(self.actor_target_net, self.actor_policy_net)
         self.hard_update(self.critic_target_net, self.critic_policy_net)
         self.update_epoach = update_epoach 
-    
-    
+        self.trajectory_number = trajectory_number
+        self.trajectories = [[] for i in range(self.trajectory_number)]
+        self.trajectory_pointer = 0
     
     def soft_update(self, target, source, tau):
         for target_param, param in zip(target.parameters(), source.parameters()):
@@ -53,21 +55,24 @@ class PPO():
         for target_param, param in zip(target.parameters(), source.parameters()):
             target_param.data.copy_(param.data)
     
-    #  training process                          
+    # the fake training process, accmulate trajectories, keeping the API to be the same among different algorithms    
     def train(self, pre_state, action, reward, next_state, if_end):
-        
-        self.replay_mem.add(pre_state, action, reward, next_state, if_end)
-        
-        if self.replay_mem.num() < self.mem_size:
-            return
-         
-        print("train epoach!")
-        self.hard_update(self.actor_target_net, self.actor_policy_net)
-        
-        for i in range(self.update_epoach):
+        # collect trajactories
+        self.trajectories[self.trajectory_pointer].append([pre_state, action, reward, next_state, if_end])
+        if if_end:
+            self.trajectory_pointer += 1
+        if self.trajectory_pointer == self.trajectory_number:
+            self.__train()
+            self.trajectory_pointer = 0
 
+
+        # add to replay memory
+        self.replay_mem.add(pre_state, action, reward, next_state, if_end)
+
+        # update the value netwrok
+        if self.replay_mem.num() >= self.train_batch_size:
             train_batch = self.replay_mem.sample(self.train_batch_size)
-    
+
             # adjust dtype to suit the gym default dtype
             pre_state_batch = torch.tensor([x[0] for x in train_batch], dtype=torch.float, device = self.device) 
             action_batch = torch.tensor([x[1] for x in train_batch], dtype = torch.float, device = self.device) 
@@ -77,45 +82,74 @@ class PPO():
             if_end = [x[4] for x in train_batch]
             if_end = torch.tensor(np.array(if_end).astype(float),device = self.device, dtype=torch.float).view(self.train_batch_size,1)
             
-            
+    
             # use the target_Q_network to get the target_Q_value
             with torch.no_grad():
                 v_next_state = self.critic_target_net(next_state_batch).detach()
                 v_target = self.gamma * v_next_state * (1 - if_end) + reward_batch
     
             v_pred = self.critic_policy_net(pre_state_batch)
+
+            self.critic_optimizer.zero_grad()
+            closs = (v_pred - v_target) ** 2 
+            closs = closs.mean()
+            closs.backward()
+            torch.nn.utils.clip_grad_norm_(self.critic_policy_net.parameters(),1)
+            self.critic_optimizer.step()
+
+            # update target network
+            self.soft_update(self.critic_target_net, self.critic_policy_net, self.tau)
+
             
-            advantage = v_pred.detach() - v_target
-            
-            
-            old_action_prob = self.actor_target_net(pre_state_batch).log_prob(action_batch)
+
+    # the true training process       
+    # trajectories is a list of trajectory, where each trajectory is a list of [s,a,r,s',if_end] tuples     
+    def __train(self):
+         
+        trajectories = self.trajectories
+        print("train epoach!")
+        self.hard_update(self.actor_target_net, self.actor_policy_net)
         
+        for _ in range(self.update_epoach):
+
+            obj = 0.0
+
+            # sample from trajectories a batch of (s,a, r,s') pairs to construct the objective
+            for i in range(self.train_batch_size):
+                # sample a (s,a,r,s') tuple
+                tj_idx = np.random.randint(0, len(trajectories))
+                chosen_tj = trajectories[tj_idx]
+                tp_idx = np.random.randint(0,len(chosen_tj))
+                chosen_tp = trajectories[tj_idx][tp_idx]
+
+                # compute advantage 
+                advantage = 0
+                for j in range(tp_idx, len(chosen_tj) - 1):
+                    with torch.no_grad():
+                        next_state = torch.tensor(chosen_tp[3], dtype = torch.float, device = self.device)
+                        current_state = torch.tensor(chosen_tp[0], dtype = torch.float, device = self.device)
+                        v_next_state = self.critic_target_net(next_state).detach()
+                        v_state = self.critic_target_net(current_state).detach()
+                    delta = chosen_tp[2] + self.gamma * v_next_state - v_state
+                    advantage += delta * self.gamma
+
+                # construct objective:
+                action = torch.tensor(chosen_tp[1], dtype = torch.float, device = self.device)
+                old_action_prob = self.actor_target_net(current_state).log_prob(action)
+                new_action_prob = self.actor_policy_net(current_state).log_prob(action)
+                aloss1 = new_action_prob / old_action_prob * advantage
+                aloss2 = torch.clamp(new_action_prob / old_action_prob, 1 - self.eps, 1 + self.eps) * advantage
+                aloss = - torch.min(aloss1, aloss2)
+                obj += aloss
+
+            obj = obj / self.train_batch_size
             self.actor_optimizer.zero_grad()
-            log_action_prob = self.actor_policy_net(pre_state_batch).log_prob(action_batch)
-                
-            aloss1 = log_action_prob / old_action_prob * advantage
-            aloss2 = torch.clamp(log_action_prob / old_action_prob, 1 - self.eps, 1 + self.eps) * advantage
-            aloss = - torch.min(aloss1, aloss2)
-            aloss = aloss.mean()
-            aloss.backward()
+            obj.backward()
             torch.nn.utils.clip_grad_norm_(self.actor_policy_net.parameters(),1)
             self.actor_optimizer.step()
-            
-            
-        self.critic_optimizer.zero_grad()
-        closs = (v_pred - v_target) ** 2 
-        closs = closs.mean()
-        closs.backward()
-        torch.nn.utils.clip_grad_norm_(self.critic_policy_net.parameters(),1)
-        self.critic_optimizer.step()
-        
-        
-        # update target network
-        self.replay_mem.clear()
-        self.soft_update(self.critic_target_net, self.critic_policy_net, self.tau)
-        self.global_step += 1
     
     # store the (pre_s, action, reward, next_state, if_end) tuples in the replay memory
+    # just keep it here
     def perceive(self, pre_s, action, reward, next_state, if_end):
         self.replay_mem.append([pre_s, action, reward, next_state, if_end])
         if len(self.replay_mem) > self.mem_size:
