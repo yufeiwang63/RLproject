@@ -30,12 +30,12 @@ import time
 # env = gym.make('LunarLanderContinuous-v2')
 # env = gym.make('LunarLander-v2')
 
-dim = 3
-window_size = 5
+dim = 1
+window_size = 2
 env = objfunc.make('quadratic', dim=dim, init_point=np.ones(dim),
                                 window_size=window_size)
 
-Replay_mem_size = 100#20000
+Replay_mem_size = 20000
 Train_batch_size = 64
 Actor_Learning_rate = 1e-3
 Critic_Learning_rate = 1e-3
@@ -60,7 +60,7 @@ print('----action range---')
 #action_high = env.action_space.high[0].astype(float)
 
 ounoise = OUNoise(Action_dim, 8, 3, 0.9995)
-gsnoise = GaussNoise(10, 2, 0.9995)
+gsnoise = GaussNoise(2, 1, 0.9995)
 
 
 ## featurization has been proved to be very important to the convergence of mountain car
@@ -87,51 +87,51 @@ def play(agent, num_epoch, Epoch_step, show = False):
                 #print('episodes end after ', step + 1, 'time steps')
                 break
             pre_state = next_state
-    return tot_reward / (num_epoch + 0.0)
+    return tot_reward / (num_epoch + 0.0) / Epoch_step
 
 
 def train(agent, Train_epoch, Epoch_step, file_name = './res.dat'):        
     output_file = open(file_name, 'w')
     for epoch in range(Train_epoch):
         pre_state = env.reset()
-        record = []
         acc_reward = 0
-       
         
         for step in range(Epoch_step):
 
             # action = agent.action(state_featurize.transfer(pre_state))
-            print('state:', pre_state)
+            #print('state:', pre_state)
             action = agent.action(pre_state)
 
+            if action[0] != action[0]:
+                raise('nan error!')
+
             #print(action)
-            print('action:', action)
+            #print('action:', action)
             next_state, reward, done, _ = env.step(action)
             # print(reward)
 
             acc_reward += reward
             
-            record.append([pre_state, action, reward])
             
             # agent.train(state_featurize.transfer(pre_state), action, reward, state_featurize.transfer(next_state), done)
             agent.train(pre_state, action, reward, next_state, done)
 
             if done or step == Epoch_step - 1:
                 #print('episoid: ', epoch + 1, 'step: ', step + 1, ' reward is', acc_reward,  file = output_file)
-                #print('episoid: ', epoch + 1, 'step: ', step + 1, ' reward is', acc_reward, )
+                print('episoid: ', epoch + 1, 'step: ', step + 1, ' reward is', acc_reward, )
                 break
             
             pre_state = next_state
         
-        if epoch % 20 == 0 and epoch > 0:
+        if epoch % 100 == 0 and epoch > 0:
             #for param in agent.actor_policy_net.parameters():
             #    print(param.data)
             avr_reward = play(agent, 10, 200, not True)
             print('--------------episode ', epoch,  'average reward: ', avr_reward, '---------------', file = output_file)
             print('--------------episode ', epoch,  'average reward: ', avr_reward, '---------------')
-            if avr_reward >= 180:
+            if avr_reward >= -1:
                 print('----- using ', epoch, '  epochs', file = output_file)
-                agent.save_model()
+                #agent.save_model()
                 break
          
     return agent
@@ -167,7 +167,7 @@ cppo = PPO(State_dim, Action_dim,-1.0, 1.0, 2000, 64, Gamma, 1e-4, 1e-4, 0.3, 0.
 # agentac = train(ac, 3000, 300, r'./record/ac_lunar_land_continues.txt')
 # agentcac = train(cac, 3000, 300, r'./record/cac_lunar_land_continues-PER.txt')
 # agentdqn = train(dqn, 3000, 300, r'./record/dqn_lunar_dueling_PER_1e-3_0.3.txt')
-agentNAF = train(naf, 10000, 300)
+agentNAF = train(naf, 10000, 50)
 
 #print('after train')
 

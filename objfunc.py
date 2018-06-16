@@ -44,7 +44,7 @@ class ObjectiveEnvironment(object):
         currentValue = self.func.f(self.currentIterate)
         currentGradient = self.func.g(self.currentIterate)
         done = False
-        print(self.currentIterate, currentValue)
+        #print(self.currentIterate, currentValue)
 
         if self.nIterate < self.windowSize:
 

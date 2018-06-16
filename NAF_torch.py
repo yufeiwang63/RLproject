@@ -49,7 +49,7 @@ class NAF():
         
         self.explore.decaynoise()
         
-        print('training')
+        # print('training')
         
         # sample $self.train_batch_size$ samples from the replay memory, and use them to train
         if not self.if_PER:
@@ -88,7 +88,7 @@ class NAF():
         if self.flag:
             loss -= q_pred.mean() # to test one of my ideas
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 1)
+        torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 0.5)
         self.optimizer.step()
     
         # update target network

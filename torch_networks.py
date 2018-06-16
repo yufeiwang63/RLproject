@@ -24,7 +24,7 @@ class NAF_network(nn.Module):
         def forward(self, s, a = None):
             
             s = F.relu(self.sharefc1(s))
-            s = F.relu(self.sharefc2(s))
+            #s = F.relu(self.sharefc2(s))
             
             v = self.v_fc1(s)
             
