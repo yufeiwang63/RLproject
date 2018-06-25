@@ -6,11 +6,11 @@ Created on Wed Apr 11 16:59:37 2018
 @author: Niwatori
 """
 
-'''
+"""
 # Line Search Algorithms
 # - Exact line searchL 0.618 method
 # - Inexact line search: strong Wolfe condition
-'''
+"""
 
 import numpy as np
 
@@ -74,7 +74,7 @@ def exact(fun, x, d, eps=1e-2, a_min=0.001, a_max=10):
 
 
 def inexact(fun, x, d, a_min=0.001, a_max=10,
-            rho=1e-4, sigma=0.1, fx=None, gx=None):
+            rho=1e-4, sigma=0.5, fx=None, gx=None):
     """Inexact line search: strong Wolfe condition
 
     Parameters
