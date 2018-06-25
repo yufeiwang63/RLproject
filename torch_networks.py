@@ -24,7 +24,7 @@ class NAF_network(nn.Module):
         def forward(self, s, a = None):
             
             s = F.relu(self.sharefc1(s))
-            #s = F.relu(self.sharefc2(s))
+            # s = F.relu(self.sharefc2(s))
             
             v = self.v_fc1(s)
             
@@ -105,21 +105,21 @@ class DDPG_critic_network(nn.Module):
         
         super(DDPG_critic_network, self).__init__()
         
-        self.sfc1 = nn.Linear(state_dim, 30)
-        self.sfc2 = nn.Linear(30,15)
+        self.sfc1 = nn.Linear(state_dim, 15)
+        self.sfc2 = nn.Linear(15,15)
         
-        self.afc1 = nn.Linear(action_dim, 30)
-        self.afc2 = nn.Linear(30,15)
+        self.afc1 = nn.Linear(action_dim, 15)
+        self.afc2 = nn.Linear(15,15)
         
         self.sharefc1 = nn.Linear(30,30)
         self.sharefc2 = nn.Linear(30,1)
         
     def forward(self, s, a):
         s = F.relu(self.sfc1(s))
-        s = F.relu(self.sfc2(s))
+        #s = F.relu(self.sfc2(s))
         
         a = F.relu(self.afc1(a))
-        a = F.relu(self.afc2(a))
+        #a = F.relu(self.afc2(a))
         
         qsa = torch.cat((s,a), 1)
         qsa = F.relu(self.sharefc1(qsa))
@@ -150,9 +150,9 @@ class AC_v_fc_network(nn.Module):
     def __init__(self, state_dim):
         super(AC_v_fc_network, self).__init__()
         
-        self.fc1 = nn.Linear(state_dim, 30)
-        self.fc2 = nn.Linear(30, 30)
-        self.fc3 = nn.Linear(30,1)
+        self.fc1 = nn.Linear(state_dim, 64)
+        self.fc2 = nn.Linear(64, 64)
+        self.fc3 = nn.Linear(64,1)
         
     def forward(self, s):
         s = F.relu(self.fc1(s))
@@ -164,9 +164,9 @@ class AC_v_fc_network(nn.Module):
 class AC_a_fc_network(nn.Module):
         def __init__(self, input_dim, output_dim):
             super(AC_a_fc_network, self).__init__()
-            self.fc1 = nn.Linear(input_dim, 30)
-            self.fc2 = nn.Linear(30, 30)
-            self.fc3 = nn.Linear(30, output_dim)
+            self.fc1 = nn.Linear(input_dim, 64)
+            self.fc2 = nn.Linear(64, 64)
+            self.fc3 = nn.Linear(64, output_dim)
             
         def forward(self, x):
             x = F.relu(self.fc1(x))
@@ -178,11 +178,11 @@ class AC_a_fc_network(nn.Module):
 class CAC_a_fc_network(nn.Module):
     def __init__(self, input_dim, output_dim, action_low, action_high):
         super(CAC_a_fc_network, self).__init__()
-        self.fc1 = nn.Linear(input_dim, 32)
-        self.fc2 = nn.Linear(32, 32)
-        self.fc3 = nn.Linear(32, output_dim)
+        self.fc1 = nn.Linear(input_dim, 64)
+        self.fc2 = nn.Linear(64, 64)
+        self.fc3 = nn.Linear(64, output_dim)
         
-        self.sigma = torch.ones((output_dim))
+        self.sigma = torch.ones((output_dim)) 
         self.action_low, self.action_high = action_low, action_high
     
     def forward(self, s):

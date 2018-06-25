@@ -23,10 +23,10 @@ class DDPG():
         self.if_PER = if_PER
         self.actor_policy_net = DDPG_actor_network(state_dim, action_dim, action_low, action_high).to(self.device)
         self.actor_target_net = DDPG_actor_network(state_dim, action_dim,action_low, action_high).to(self.device)
-        #self.critic_policy_net = DDPG_critic_network(state_dim, action_dim).to(self.device)
-        #self.critic_target_net = DDPG_critic_network(state_dim, action_dim).to(self.device)
-        self.critic_policy_net = NAF_network(state_dim, action_dim, action_low, action_high).to(self.device)
-        self.critic_target_net = NAF_network(state_dim, action_dim, action_low, action_high).to(self.device)
+        self.critic_policy_net = DDPG_critic_network(state_dim, action_dim).to(self.device)
+        self.critic_target_net = DDPG_critic_network(state_dim, action_dim).to(self.device)
+        # self.critic_policy_net = NAF_network(state_dim, action_dim, action_low, action_high).to(self.device)
+        # self.critic_target_net = NAF_network(state_dim, action_dim, action_low, action_high).to(self.device)
         self.actor_optimizer = optim.Adam(self.actor_policy_net.parameters(), self.actor_lr)
         self.critic_optimizer = optim.Adam(self.critic_policy_net.parameters(), self.critic_lr)
         self.hard_update(self.actor_target_net, self.actor_policy_net)
@@ -87,14 +87,20 @@ class DDPG():
             
         closs = torch.mean(closs)
         closs.backward()
-        torch.nn.utils.clip_grad_norm(self.critic_policy_net.parameters(), 1)
+        #torch.nn.utils.clip_grad_norm(self.critic_policy_net.parameters(), 1)
         self.critic_optimizer.step()
         
         self.actor_optimizer.zero_grad()
-        aloss = - self.critic_policy_net(pre_state_batch, self.actor_policy_net(pre_state_batch))
+        aloss = -self.critic_policy_net(pre_state_batch, self.actor_policy_net(pre_state_batch))
+        
         aloss = aloss.mean()
+        # print('aloss is {0}'.format(aloss))
         aloss.backward()
-        torch.nn.utils.clip_grad_norm(self.actor_policy_net.parameters(), 1)
+        # for para in self.actor_policy_net.parameters():
+        #     print('grad is {0}'.format(para.grad))
+            # if torch.max(para.grad).numpy() == 0:
+            #     raise('why all 0?') 
+        #torch.nn.utils.clip_grad_norm(self.actor_policy_net.parameters(), 1)
         self.actor_optimizer.step()
     
 

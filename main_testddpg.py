@@ -30,14 +30,10 @@ import time
 # env = gym.make('LunarLanderContinuous-v2')
 # env = gym.make('LunarLander-v2')
 
-dim = 2
-window_size = 25
-X = np.array([[3,1],[4,1]])
-Y = np.array([0,1])
+dim = 1
+window_size = 2
 env = objfunc.make('quadratic', dim=dim, init_point=np.ones(dim) ,
                                 window_size=window_size)
-# env = objfunc.make('logistic', dim = dim, init_point=np.ones(dim), 
-#                     window_size=window_size,  other_params=[X,Y])
 
 Replay_mem_size = 50000
 Train_batch_size = 64
@@ -64,7 +60,7 @@ print('----action range---')
 #action_high = env.action_space.high[0].astype(float)
 
 ounoise = OUNoise(Action_dim, 8, 3, 0.9995)
-gsnoise = GaussNoise(0.5, 0.2, 0.99995)
+gsnoise = GaussNoise(0.05, 0.02, 0.99995)
 
 
 ## featurization has been proved to be very important to the convergence of mountain car
@@ -122,10 +118,10 @@ def train(agent, Train_epoch, Epoch_step, file_name = './res.dat'):
             pre_state = next_state
         
         if epoch % 100 == 0 and epoch > 0:
-            final_value = play(agent, 1, 20, not True)
+            final_value = play(agent, 10, 50, not True)
             print('--------------episode ', epoch,  'final_value: ', final_value, '---------------', file = output_file)
             print('--------------episode ', epoch,  'final value: ', final_value, '---------------')
-            if np.mean(np.array(final_value)) < 10:
+            if np.mean(np.array(final_value)) < 0.05:
                 print('----- using ', epoch, '  epochs')
                 #agent.save_model()
                 break
@@ -149,7 +145,7 @@ ac = AC(State_dim, Action_dim, Replay_mem_size, Train_batch_size,
              Gamma, 1e-3, 1e-3, 0.1)
 
 cac = CAC(State_dim, Action_dim, Replay_mem_size, Train_batch_size,
-             Gamma, 1e-5, 1e-5, 0.1, -0.3, 0.3, False)
+             Gamma, 5e-5, 5e-5, 0.1, -0.3, 0.3, False)
 
 cppo = PPO(State_dim, Action_dim,-1.0, 1.0, 2000, 64, Gamma, 1e-4, 1e-4, 0.3, 0.2, 100)
 
@@ -163,7 +159,7 @@ cppo = PPO(State_dim, Action_dim,-1.0, 1.0, 2000, 64, Gamma, 1e-4, 1e-4, 0.3, 0.
 # agentac = train(ac, 3000, 300, r'./record/ac_lunar_land_continues.txt')
 # agentcac = train(cac, 3000, 300, r'./record/cac_lunar_land_continues-PER.txt')
 # agentdqn = train(dqn, 3000, 300, r'./record/dqn_lunar_dueling_PER_1e-3_0.3.txt')
-agentNAF = train(cac, 20000, 20)
+agentNAF = train(ddpg, 10000, 50)
 
 #print('after train')
 

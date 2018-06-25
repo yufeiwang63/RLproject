@@ -12,7 +12,7 @@ from helper_functions import SlidingMemory, PERMemory
 
 class NAF():    
     def __init__(self, state_dim, action_dim, mem_size, train_batch_size, gamma, lr,
-                 action_low, action_high, tau, noise, flag, if_PER = True):
+                 action_low, action_high, tau, noise, flag, if_PER = False):
         self.mem_size, self.train_batch_size = mem_size, train_batch_size
         self.gamma, self.lr = gamma, lr
         self.global_step = 0
@@ -80,6 +80,7 @@ class NAF():
             self.replay_mem.update(idx_batch, TD_error_batch)
         
         self.optimizer.zero_grad()
+        #print('q_pred is {0} and q_target is {1}'.format(q_pred, q_target))
         loss = (q_pred - q_target) ** 2 
         if self.if_PER:
             loss *= weight_batch
@@ -88,6 +89,10 @@ class NAF():
         if self.flag:
             loss -= q_pred.mean() # to test one of my ideas
         loss.backward()
+        # loss = torch.min(loss, torch.tensor(1000, dtype = torch.float))
+        # print('loss is {0}'.format(loss))
+        # # for para in self.policy_net.parameters():
+        #     print('param is: \n {0} \n gradient is: \n {1}'.format(para, para.grad))
         torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 0.5)
         self.optimizer.step()
     

@@ -2,6 +2,7 @@
 
 import numpy as np
 import random
+import torch
 
 
 class ObjectiveEnvironment(object):
@@ -34,8 +35,13 @@ class ObjectiveEnvironment(object):
 
         initState = np.concatenate((self.currentIterate, self.historyChange,
                                     self.historyGradient))
+
+        # initState = np.concatenate((self.historyChange,
+        #                             self.historyGradient))
         return initState
 
+    def get_value(self):
+        return self.func.f(self.currentIterate)
 
     def step(self, update):
         self.nIterate += 1
@@ -66,17 +72,22 @@ class ObjectiveEnvironment(object):
         currentState = np.concatenate((self.currentIterate, self.historyChange,
                                        self.historyGradient))
 
+        # currentState = np.concatenate((self.historyChange,
+        #                                self.historyGradient))
+
         return currentState, -currentValue, done, None
 
 
-def make(str='quadratic', dim=3, init_point=None, window_size=25):
+def make(str='quadratic', dim=3, init_point=None, window_size=25, other_params = []):
 
     if init_point is None:
         init_point = np.zeros(dim)
 
     if str == 'quadratic':
         return ObjectiveEnvironment(Quadratic(dim), init_point, window_size)
-
+    
+    if str == 'logistic':
+        return ObjectiveEnvironment(Logistic(dim, other_params[0], other_params[1]), init_point, window_size)
 
 
 class Quadratic(object):
@@ -90,6 +101,26 @@ class Quadratic(object):
 
     def g(self, x):
         return 2 * x
+
+
+class Logistic():
+    """ doc for Logistic """
+    def __init__(self, dim,  X, Y):
+        self.X = torch.tensor(X, dtype = torch.float)
+        self.Y = torch.tensor(Y, dtype = torch.float)
+        self.dim = dim
+
+    def f(self, W):
+        W_torch = torch.tensor(W, dtype = torch.float, requires_grad = True)
+        val = torch.sum(self.Y * torch.log(1 / (1 + (torch.exp(torch.matmul(self.X, W_torch))))) \
+            + (1 - self.Y) * torch.log(1 - (1 / (1 + torch.exp(torch.matmul(self.X, W_torch))))))
+        val.backward()
+        self.grad = W_torch.grad
+        return val.item()
+
+    def g(self,W):
+        return self.grad 
+
 
 
 '''
