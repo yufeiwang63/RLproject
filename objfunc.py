@@ -4,6 +4,9 @@ import numpy as np
 import random
 import torch
 import math
+import torch.nn.functional as F
+from torch import nn
+
 
 
 class ObjectiveEnvironment(object):
@@ -52,11 +55,12 @@ class ObjectiveEnvironment(object):
         currentValue = self.func.f(self.currentIterate)
         currentGradient = self.func.g(self.currentIterate)
         done = False
-        #print(self.currentIterate, currentValue)
+        # print('step:', self.currentIterate, currentValue)
+        # print('step:', currentGradient)
 
-        if(math.isinf(currentValue)):
+        if (math.isinf(currentValue)):
             currentState = np.concatenate((self.currentIterate, self.historyChange,
-                                       self.historyGradient))
+                                           self.historyGradient))
 
             return currentState, -1000000, done, None
 
@@ -87,19 +91,22 @@ class ObjectiveEnvironment(object):
         return currentState, -currentValue, done, None
 
 
-def make(str='quadratic', dim=3, init_point=None, window_size=25, other_params = []):
+def make(str='quadratic', dim=3, init_point=None, window_size=25, other_params = [], **kwargs):
 
     if init_point is None:
-        init_point = np.zeros(dim)
+        init_point = np.ones(dim)
 
     if str == 'quadratic':
         return ObjectiveEnvironment(Quadratic(dim), init_point, window_size)
     
-    if str == 'logistic':
+    elif str == 'logistic':
         return ObjectiveEnvironment(Logistic(dim, other_params[0], other_params[1]), init_point, window_size)
 
-    if str == 'ackley':
+    elif str == 'ackley':
         return ObjectiveEnvironment(Ackley(dim), init_point, window_size)
+
+    elif str == 'neural':
+        return ObjectiveEnvironment(NeuralNet(dim, other_params[0], other_params[1], **kwargs), init_point, window_size)
 
 
 class Quadratic(object):
@@ -123,9 +130,9 @@ class Quadratic(object):
         return 2 * x
 
 
-class Logistic():
+class Logistic(object):
     """ doc for Logistic """
-    def __init__(self, dim,  X, Y, lbd = 5e-4):
+    def __init__(self, dim, X, Y, lbd = 5e-4):
         self.X = torch.tensor(X, dtype = torch.float)
         self.Y = torch.tensor(Y, dtype = torch.float)
         self.dim = dim
@@ -141,7 +148,7 @@ class Logistic():
             + 0.5 * self.lbd * torch.sum(W_torch * W_torch)
         return val.item()
 
-    def g(self,W):
+    def g(self, W):
         W_torch = torch.tensor(W, dtype = torch.float, requires_grad = True)
         # val = - torch.mean(self.Y * torch.log(1e-10 + 1 / (1 + (torch.exp(-torch.matmul(self.X, W_torch))))) \
         #     + (1 - self.Y) * torch.log(1e-10 + 1 - (1 / (1 + torch.exp(-torch.matmul(self.X, W_torch)))))) \
@@ -152,11 +159,13 @@ class Logistic():
         val.backward()
         return W_torch.grad.data.numpy()
 
-class Ackley():
+
+class Ackley(object):
     """doc for Ackley function"""
     def __init__(self, dim = 2):
         self.dim = dim
-
+        self.X = torch.tensor(X, dtype = torch.float)
+        self.Y = torch.tensor(Y, dtype = torch.float)
 
     def f(self, x):
         x_ = x[0]
@@ -174,28 +183,54 @@ class Ackley():
         val.backward()
         return X_torch.grad.data.numpy()
 
-'''
-class Logistic(object):
-    """docstring for Logistic"""
-    def __init__(self, dim, seed):
-        super(Logistic, self).__init__()
+
+class NeuralNet(object):
+    """docstring for NeuralNet"""
+    def __init__(self, dim, X, Y, d=2, h=2, p=2, lamda=.0005):
+        super(NeuralNet, self).__init__()
         self.dim = dim
-        self.seed = seed
-        self.nInstance = 100
+        self.X = torch.tensor(X, dtype=torch.float)
+        self.Y = torch.tensor(Y, dtype=torch.long)
+        self.arch = {'d' : d, 'h' : h, 'p' : p, 'lamda' : lamda} # network architecture parameters
 
-    def generateData():
-        gaussian = 
+    def f(self, param):
+        param = torch.tensor(param, dtype=torch.float, requires_grad=True)
+        d, h, p, lamda = self.arch['d'], self.arch['h'], self.arch['p'], self.arch['lamda']
 
+        W = param[0 : h*d].view(h, d)
+        b = param[h*d : h*d+h]
+        U = param[h*d+h : h*d+h+p*h].view(p, h)
+        c = param[h*d+h+p*h : ]
 
-        self.x = []
-        self.y = []
+        X, Y = self.X, self.Y
+        fc1 = F.relu(torch.matmul(X, W) + b)
+        fc2 = torch.exp(torch.matmul(fc1, U) + c)
+        numerator = fc2.gather(1, Y.view(-1, 1)).squeeze()
+        val = -torch.mean(torch.log(1e-6 + numerator / torch.sum(fc2, dim=1)))
+        reg = (lamda / 2) * (torch.norm(W) ** 2 + torch.norm(U) ** 2)
+        loss = val + reg
 
-        for k in range(self.nInstance):
-            s
+        return loss.item()
 
-    def f(x):
+    def g(self, param):
+        param = torch.tensor(param, dtype=torch.float, requires_grad=True)
+        d, h, p, lamda = self.arch['d'], self.arch['h'], self.arch['p'], self.arch['lamda']
 
+        W = param[0 : h*d].view(h, d)
+        b = param[h*d : h*d+h]
+        U = param[h*d+h : h*d+h+p*h].view(p, h)
+        c = param[h*d+h+p*h : ]
 
+        X, Y = self.X, self.Y
+        fc1 = F.relu(torch.matmul(X, W) + b)
+        fc2 = torch.exp(torch.matmul(fc1, U) + c)
+        numerator = fc2.gather(1, Y.view(-1, 1)).squeeze()
+        val = -torch.mean(torch.log(1e-6 + numerator / torch.sum(fc2, dim=1)))
+        # print('val:', val)
+        reg = (lamda / 2) * (torch.norm(W) ** 2 + torch.norm(U) ** 2)
+        loss = val + reg
+        # print('loss:', loss.data)
 
-    def g(x):
-'''
+        loss.backward()
+        # print('grad:', param.grad)
+        return param.grad.data.numpy()
