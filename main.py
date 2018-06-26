@@ -24,7 +24,7 @@ import time
 from cg import cg
 from bb import sd
 from newton import quasiNewton
-from objfunc import Logistic, Quadratic, NeuralNet
+from objfunc import Logistic, Quadratic, NeuralNet, Ackley
 from dataset import LogisticDataset, NeuralNetDataset
 
 ## parameters
@@ -59,6 +59,11 @@ elif args.obj == 'logistic':
     env = objfunc.make('logistic', dim=dim, init_point=init_point, 
                         window_size=window_size, other_params=[X, Y])
 
+elif args.obj == 'ackley':
+    init_point = np.array([7,8])
+    env = objfunc.make('ackley', dim=dim, init_point=init_point, 
+                        window_size=window_size)
+
 elif args.obj == 'neural':
     d, h, p, lamda = 2, 2, 2, .0005
     kwargs = {'d' : d, 'h': h, 'p' : p, 'lamda' : lamda}
@@ -86,7 +91,7 @@ Action_dim = dim
 print(Action_dim)
 
 ounoise = OUNoise(Action_dim, 8, 3, 0.9995)
-gsnoise = GaussNoise(2, 0.1, 0.99995)
+gsnoise = GaussNoise(0.2, 0.05, 0.99995)
 noise = gsnoise if args.noise_type == 'gauss' else ounoise
             
 
@@ -131,10 +136,13 @@ def train(agent, Train_epoch, Epoch_step, file_name = './res.dat'):
             acc_reward += reward
             # print('next:', next_state)
 
+            if step == Epoch_step - 1:
+                done = True
+
             # agent.train(state_featurize.transfer(pre_state), action, reward, state_featurize.transfer(next_state), done)
             agent.train(pre_state, action, reward, next_state, done)
 
-            if done or step == Epoch_step - 1:
+            if done:
                 #print('episode: ', epoch + 1, 'step: ', step + 1, ' reward is', acc_reward,  file = output_file)
                 #print('episode: ', epoch + 1, 'step: ', step + 1, ' reward is', acc_reward, )
                 print('episode: ', epoch + 1, 'step: ', step + 1, ' final value: ', env.get_value())
@@ -146,7 +154,7 @@ def train(agent, Train_epoch, Epoch_step, file_name = './res.dat'):
             final_value = play(agent, 1, 20, not True)
             print('--------------episode ', epoch,  'final_value: ', final_value, '---------------', file = output_file)
             print('--------------episode ', epoch,  'final value: ', final_value, '---------------')
-            if np.mean(np.array(final_value)) < -0.8:
+            if np.mean(np.array(final_value)) < -1.8:
                 print('----- using ', epoch, '  epochs')
                 #agent.save_model()
                 break
@@ -164,29 +172,23 @@ ddpg = DDPG(State_dim, Action_dim, Replay_mem_size, Train_batch_size,
 cac = CAC(State_dim, Action_dim, Replay_mem_size, Train_batch_size,
              Gamma, Actor_Learning_rate, Critic_Learning_rate,  Action_low, Action_high, Tau, False)
 
-cppo = PPO(State_dim, Action_dim,-1.0, 1.0, 2000, 64, Gamma, 1e-4, 1e-4, 0.3, 0.2, 100)
+cppo = PPO(State_dim, Action_dim,Action_low, Action_high, Replay_mem_size, Train_batch_size, Gamma, 
+            Actor_Learning_rate, Critic_Learning_rate, Tau, trajectory_number=100, update_epoach=20)
 
 
-
-# cg_x, cg_y, _, cg_iter, _ = cg(Quadratic(dim), np.ones(dim),  debug = True)
-# print('CG method:\n optimal point: {0}, optimal value: {1}, iterations {2}'.format(cg_x, cg_y, cg_iter))
-# sd_x, sd_y, _, sd_iter, _ = sd(Quadratic(dim), np.ones(dim))
-# print('SD method:\n optimal point: {0}, optimal value: {1}, iterations {2}'.format(sd_x, sd_y, sd_iter))
-# bfgs_x, bfgs_y, _, bfgs_iter, _ = quasiNewton(Quadratic(dim), np.ones(dim))
-# print('bfgs method:\n optimal point: {0}, optimal value: {1}, iterations {2}'.format(bfgs_x, bfgs_y, bfgs_iter))
-
-
-# cg_x, cg_y, _, cg_iter, _ = cg(Logistic(dim, X, Y), x0 = init_point, maxiter=20)
-# print('CG method:\n optimal point: {0}, optimal value: {1}, iterations {2}'.format(cg_x, cg_y, cg_iter))
-# sd_x, sd_y, _, sd_iter, _ = sd(Logistic(dim, X, Y), x0=init_point, maxiter = 20)
-# print('SD method:\n optimal point: {0}, optimal value: {1}, iterations {2}'.format(sd_x, sd_y, sd_iter))
-# bfgs_x, bfgs_y, _, bfgs_iter, _ = quasiNewton(Logistic(dim, X, Y), x0=init_point, maxiter=20)
-# print('bfgs method:\n optimal point: {0}, optimal value: {1}, iterations {2}'.format(bfgs_x, bfgs_y, bfgs_iter))
+if args.obj == 'quadratic':
+    obj = Quadratic(dim)
+elif args.obj == 'logistic':
+    obj = Logistic(dim, X, Y)
+elif args.obj == 'ackley':
+    obj = Ackley(dim)
+elif args.obj == 'neural':
+    obj = NeuralNet(dim, X, Y, **kwargs)
 
 
-cg_x, cg_y, _, cg_iter, _ = cg(NeuralNet(dim, X, Y, **kwargs), x0 = init_point, maxiter=20)
+cg_x, cg_y, _, cg_iter, _ = cg(obj, x0 = init_point, maxiter=20)
 print('CG method:\n optimal point: {0}, optimal value: {1}, iterations {2}'.format(cg_x, cg_y, cg_iter))
-sd_x, sd_y, _, sd_iter, _ = sd(NeuralNet(dim, X, Y, **kwargs), x0=init_point, maxiter=20)
+sd_x, sd_y, _, sd_iter, _ = sd(obj, x0=init_point, maxiter=20)
 print('SD method:\n optimal point: {0}, optimal value: {1}, iterations {2}'.format(sd_x, sd_y, sd_iter))
 # bfgs_x, bfgs_y, _, bfgs_iter, _ = quasiNewton(Logistic(dim, X, Y), x0=init_point, maxiter=20)
 # print('bfgs method:\n optimal point: {0}, optimal value: {1}, iterations {2}'.format(bfgs_x, bfgs_y, bfgs_iter))
@@ -198,6 +200,8 @@ elif args.agent == 'ddpg':
     agent = train(ddpg, 20000, 20)
 elif args.agent == 'cac':
     agent = train(cac, 20000, 20)
+elif args.agent == 'ppo':
+    agent = train(cppo, 20000, 20)
 
 #print('after train')
 
