@@ -98,6 +98,9 @@ def make(str='quadratic', dim=3, init_point=None, window_size=25, other_params =
     if str == 'logistic':
         return ObjectiveEnvironment(Logistic(dim, other_params[0], other_params[1]), init_point, window_size)
 
+    if str == 'ackley':
+        return ObjectiveEnvironment(Ackley(dim), init_point, window_size)
+
 
 class Quadratic(object):
     """docstring for Quadratic"""
@@ -149,7 +152,27 @@ class Logistic():
         val.backward()
         return W_torch.grad.data.numpy()
 
+class Ackley():
+    """doc for Ackley function"""
+    def __init__(self, dim = 2):
+        self.dim = dim
 
+
+    def f(self, x):
+        x_ = x[0]
+        y_ = x[1]
+        val = -20 * np.exp(-0.2 * np.sqrt(0.5 * (x_ ** 2 + y_ ** 2))) \
+           - np.exp(0.5 * (np.cos(2 * math.pi * x_) + np.cos(2 * y_ * math.pi))) + np.exp(1) + 20
+        return val
+
+    def g(self, x):
+        X_torch = torch.tensor(x, dtype = torch.float, requires_grad = True)
+        x = torch.sum(X_torch * torch.tensor([1,0], dtype = torch.float))
+        y = torch.sum(X_torch * torch.tensor([0,1], dtype = torch.float))
+        val = -20 * torch.exp(-0.2 * torch.sqrt(0.5 * torch.sum(X_torch ** 2))) - \
+           torch.exp(0.5 * (torch.cos(2 * math.pi * x) + torch.cos(2 * math.pi * y))) + np.exp(1) + 20
+        val.backward()
+        return X_torch.grad.data.numpy()
 
 '''
 class Logistic(object):
