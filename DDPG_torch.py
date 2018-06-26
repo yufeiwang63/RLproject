@@ -23,16 +23,23 @@ class DDPG():
         self.if_PER = if_PER
         self.actor_policy_net = DDPG_actor_network(state_dim, action_dim, action_low, action_high).to(self.device)
         self.actor_target_net = DDPG_actor_network(state_dim, action_dim,action_low, action_high).to(self.device)
-        self.critic_policy_net = DDPG_critic_network(state_dim, action_dim).to(self.device)
-        self.critic_target_net = DDPG_critic_network(state_dim, action_dim).to(self.device)
-        # self.critic_policy_net = NAF_network(state_dim, action_dim, action_low, action_high).to(self.device)
-        # self.critic_target_net = NAF_network(state_dim, action_dim, action_low, action_high).to(self.device)
-        self.actor_optimizer = optim.Adam(self.actor_policy_net.parameters(), self.actor_lr)
-        self.critic_optimizer = optim.Adam(self.critic_policy_net.parameters(), self.critic_lr)
+        # self.critic_policy_net = DDPG_critic_network(state_dim, action_dim).to(self.device)
+        # self.critic_target_net = DDPG_critic_network(state_dim, action_dim).to(self.device)
+        self.critic_policy_net = NAF_network(state_dim, action_dim, action_low, action_high).to(self.device)
+        self.critic_target_net = NAF_network(state_dim, action_dim, action_low, action_high).to(self.device)
+        self.critic_policy_net.apply(self._weight_init)
+        self.actor_policy_net.apply(self._weight_init)
+        self.actor_optimizer = optim.RMSprop(self.actor_policy_net.parameters(), self.actor_lr)
+        self.critic_optimizer = optim.RMSprop(self.critic_policy_net.parameters(), self.critic_lr)
         self.hard_update(self.actor_target_net, self.actor_policy_net)
         self.hard_update(self.critic_target_net, self.critic_policy_net)
     
-    
+    def _weight_init(self,m):
+        if type(m) == nn.Linear:
+            torch.nn.init.xavier_uniform_(m.weight)
+            torch.nn.init.constant_(m.bias, 0.01)
+
+
     def soft_update(self, target, source, tau):
         for target_param, param in zip(target.parameters(), source.parameters()):
             target_param.data.copy_(target_param.data * (1.0 - tau) + param.data * tau)
@@ -87,7 +94,7 @@ class DDPG():
             
         closs = torch.mean(closs)
         closs.backward()
-        #torch.nn.utils.clip_grad_norm(self.critic_policy_net.parameters(), 1)
+        # torch.nn.utils.clip_grad_norm_(self.critic_policy_net.parameters(), 2)
         self.critic_optimizer.step()
         
         self.actor_optimizer.zero_grad()
@@ -100,7 +107,7 @@ class DDPG():
         #     print('grad is {0}'.format(para.grad))
             # if torch.max(para.grad).numpy() == 0:
             #     raise('why all 0?') 
-        #torch.nn.utils.clip_grad_norm(self.actor_policy_net.parameters(), 1)
+        # torch.nn.utils.clip_grad_norm_(self.actor_policy_net.parameters(), 2)
         self.actor_optimizer.step()
     
 

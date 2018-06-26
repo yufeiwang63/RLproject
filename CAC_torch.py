@@ -14,8 +14,20 @@ warnings.simplefilter("error", RuntimeWarning)
         
 
 class CAC():    
-    def __init__(self, state_dim, action_dim, mem_size, train_batch_size, gamma, actor_lr, critic_lr, 
-                 tau, action_low, action_high, if_PER = True):
+    ''' doc for cac
+
+    parameters:
+    --------
+
+    methods:
+    --------
+    
+    '''
+    def __init__(self, state_dim, action_dim, mem_size = 10000, train_batch_size = 64, \
+                 gamma = 0.99, actor_lr = 1e-4, critic_lr = 1e-4, \
+                 action_low = -1.0, action_high = 1.0, tau = 0.1, \
+                 sigma = 1, if_PER = True):
+        
         self.mem_size, self.train_batch_size = mem_size, train_batch_size
         self.gamma, self.actor_lr, self.critic_lr = gamma, actor_lr, critic_lr
         self.global_step = 0
@@ -25,12 +37,12 @@ class CAC():
         #self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.device = 'cpu'
         self.action_low, self.action_high = action_low, action_high
-        self.actor_policy_net = CAC_a_fc_network(state_dim, action_dim, action_low, action_high).to(self.device)
-        self.actor_target_net = CAC_a_fc_network(state_dim, action_dim, action_low, action_high).to(self.device)
+        self.actor_policy_net = CAC_a_fc_network(state_dim, action_dim, action_low, action_high, sigma).to(self.device)
+        self.actor_target_net = CAC_a_fc_network(state_dim, action_dim, action_low, action_high, sigma).to(self.device)
         self.critic_policy_net = AC_v_fc_network(state_dim).to(self.device)
         self.critic_target_net = AC_v_fc_network(state_dim).to(self.device)
-        self.actor_optimizer = optim.Adam(self.actor_policy_net.parameters(), self.actor_lr)
-        self.critic_optimizer = optim.Adam(self.critic_policy_net.parameters(), self.critic_lr)
+        self.actor_optimizer = optim.RMSprop(self.actor_policy_net.parameters(), self.actor_lr)
+        self.critic_optimizer = optim.RMSprop(self.critic_policy_net.parameters(), self.critic_lr)
         self.hard_update(self.actor_target_net, self.actor_policy_net)
         self.hard_update(self.critic_target_net, self.critic_policy_net)
     
@@ -86,7 +98,7 @@ class CAC():
             closs *= weight_batch
         closs = closs.mean()
         closs.backward()
-        torch.nn.utils.clip_grad_norm_(self.critic_policy_net.parameters(),1)
+        torch.nn.utils.clip_grad_norm_(self.critic_policy_net.parameters(),2)
         self.critic_optimizer.step()
         
         
@@ -103,7 +115,7 @@ class CAC():
         aloss = -log_action_prob * TD_error
         aloss = aloss.mean()
         aloss.backward()
-        torch.nn.utils.clip_grad_norm_(self.actor_policy_net.parameters(),1)
+        torch.nn.utils.clip_grad_norm_(self.actor_policy_net.parameters(),2)
         self.actor_optimizer.step()
     
         # update target network

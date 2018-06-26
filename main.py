@@ -8,10 +8,9 @@ import gym
 import torch
 import numpy as np
 import objfunc
+import sys
+import argparse
 
-#from critics import *
-#from actors import *
-#from actor_critic import *
 from helper_functions import *
 from DQN_torch import DQN 
 from NAF_torch import NAF
@@ -22,55 +21,60 @@ from PPO_torch import PPO
 import matplotlib.pyplot as plt
 import time
 
+from cg import cg
+from bb import sd
+from newton import quasiNewton
+from objfunc import Logistic, Quadratic
+from dataset import LogisticDataset
 
-# env = gym.make('Pendulum-v0')
-# env = gym.make('MountainCarContinuous-v0')
-# env = gym.make('MountainCar-v0')
-# env = gym.make('CartPole-v0')
-# env = gym.make('LunarLanderContinuous-v2')
-# env = gym.make('LunarLander-v2')
+## parameters
+argparser = argparse.ArgumentParser(sys.argv[0])
+argparser.add_argument('--lr', type=float, default=1e-4)
+argparser.add_argument('--replay_size', type=int, default=30000)
+argparser.add_argument('--batch_size', type=float, default=64)
+argparser.add_argument('--gamma', type=float, default=0.99)
+argparser.add_argument('--tau', type=float, default=0.1)
+argparser.add_argument('--noise_type', type = str, default = 'gauss')
+argparser.add_argument('--agent', type = str, default = 'ddpg')
+argparser.add_argument('--action_low', type = float, default = -0.3)
+argparser.add_argument('--action_high', type = float, default = 0.3)
+argparser.add_argument('--dim', type = int, default = 3)
+argparser.add_argument('--window_size', type = int, default = 10)
+argparser.add_argument('--obj', type = str, default = 'quadratic')
+args = argparser.parse_args()
 
-dim = 2
-window_size = 25
-X = np.array([[3,1],[4,1]])
-Y = np.array([0,1])
-env = objfunc.make('quadratic', dim=dim, init_point=np.ones(dim) ,
+### the env
+X, Y = LogisticDataset(dim=args.dim)
+dim = args.dim + 1
+window_size = args.window_size
+init_point = np.ones(dim)
+if args.obj == 'quadratic':
+    env = objfunc.make('quadratic', dim=dim, init_point=init_point ,
                                 window_size=window_size)
-# env = objfunc.make('logistic', dim = dim, init_point=np.ones(dim), 
-#                     window_size=window_size,  other_params=[X,Y])
+elif args.obj == 'logistic':
+    env = objfunc.make('logistic', dim = dim, init_point=init_point, 
+                        window_size=window_size,  other_params=[X,Y])
 
-Replay_mem_size = 50000
-Train_batch_size = 64
-Actor_Learning_rate = 1e-3
-Critic_Learning_rate = 1e-3
-Gamma = 0.99
-explore_rate = 10
-tau = 0.1
 
-# State_dim = env.observation_space.shape[0]
+### the params
+Replay_mem_size = args.replay_size
+Train_batch_size = args.batch_size
+Actor_Learning_rate = args.lr
+Critic_Learning_rate = args.lr
+Gamma = args.gamma
+Tau = args.tau
+Action_low = args.action_low
+Action_high = args.action_high
+
 State_dim = dim + window_size + dim * window_size
 print(State_dim)
 
-# Action_dim = env.action_space.shape[0]
-# Action_dim = env.action_space.n
 Action_dim = dim
 print(Action_dim)
 
-
-print('----action range---')
-#print(env.action_space.high)
-#print(env.action_space.low)
-#action_low = env.action_space.low[0].astype(float)
-#action_high = env.action_space.high[0].astype(float)
-
 ounoise = OUNoise(Action_dim, 8, 3, 0.9995)
-gsnoise = GaussNoise(0.5, 0.2, 0.99995)
-
-
-## featurization has been proved to be very important to the convergence of mountain car
-# state_featurize = Featurize_state(env, True)
-# After_featurize_state_dim = state_featurize.get_featurized_state_dim()
-
+gsnoise = GaussNoise(5, 0.5, 0.99995)
+noise = gsnoise if args.noise_type == 'gauss' else ounoise
             
 
 def play(agent, num_epoch, Epoch_step, show = False):
@@ -125,45 +129,50 @@ def train(agent, Train_epoch, Epoch_step, file_name = './res.dat'):
             final_value = play(agent, 1, 20, not True)
             print('--------------episode ', epoch,  'final_value: ', final_value, '---------------', file = output_file)
             print('--------------episode ', epoch,  'final value: ', final_value, '---------------')
-            if np.mean(np.array(final_value)) < 10:
+            if np.mean(np.array(final_value)) < -0.8:
                 print('----- using ', epoch, '  epochs')
                 #agent.save_model()
                 break
          
     return agent
             
-    
-
-
 
 naf = NAF(State_dim, Action_dim, Replay_mem_size, Train_batch_size,
-          Gamma, 1e-4, -0.3, 0.3, tau, gsnoise, False, False)  
-#naf_addloss = NAF(State_dim, Action_dim, Replay_mem_size, Train_batch_size,
-#             Gamma, Critic_Learning_rate, -1.0, 1.0, tau, gsnoise, True)  
-dqn = DQN(State_dim, Action_dim, Replay_mem_size, Train_batch_size,\
-            Gamma, 1e-4, 0.1, True, True)  
-ddpg = DDPG(State_dim, Action_dim, Replay_mem_size, Train_batch_size,
-             Gamma, 1e-3, 1e-3, -0.1, 0.1, 0.1, gsnoise, False) 
+          Gamma, Critic_Learning_rate, Action_low, Action_high, Tau, noise, False, False)  
 
-ac = AC(State_dim, Action_dim, Replay_mem_size, Train_batch_size,
-             Gamma, 1e-3, 1e-3, 0.1)
+ddpg = DDPG(State_dim, Action_dim, Replay_mem_size, Train_batch_size,
+             Gamma, Actor_Learning_rate, Critic_Learning_rate, Action_low, Action_high, Tau, noise, False) 
 
 cac = CAC(State_dim, Action_dim, Replay_mem_size, Train_batch_size,
-             Gamma, 1e-5, 1e-5, 0.1, -0.3, 0.3, False)
+             Gamma, Actor_Learning_rate, Critic_Learning_rate,  Action_low, Action_high, Tau, False)
 
 cppo = PPO(State_dim, Action_dim,-1.0, 1.0, 2000, 64, Gamma, 1e-4, 1e-4, 0.3, 0.2, 100)
 
-# agent = train(naf, 10000,300)
-# agentnaf = train(naf, 3000, 300, r'./record/naf_lunar.txt')
-# agentppo = train(cppo, 3000, 300, r'./record/ppo_lunar.txt')
-# agentnaf_addloss = train(naf_addloss, 1500, 300, r'./record/naf_addloss_lunar.txt')
-# agentddpg = train(ddpg, 3000, 300, r'./record/ddpg_lunar_PER.txt')
-# agentnaf_addloss = train(naf_addloss, 1500, 300, r'D:\study\rl by david silver\Trainrecord\NAF_addloss.txt')
-# agentnaf_ddpg = train(ddpg, 1500, 300, r'D:\study\rl by david silver\Trainrecord\ddpg_lunar.txt')
-# agentac = train(ac, 3000, 300, r'./record/ac_lunar_land_continues.txt')
-# agentcac = train(cac, 3000, 300, r'./record/cac_lunar_land_continues-PER.txt')
-# agentdqn = train(dqn, 3000, 300, r'./record/dqn_lunar_dueling_PER_1e-3_0.3.txt')
-agentNAF = train(cac, 20000, 20)
+
+
+# cg_x, cg_y, _, cg_iter, _ = cg(Quadratic(dim), np.ones(dim),  debug = True)
+# print('CG method:\n optimal point: {0}, optimal value: {1}, iterations {2}'.format(cg_x, cg_y, cg_iter))
+# sd_x, sd_y, _, sd_iter, _ = sd(Quadratic(dim), np.ones(dim))
+# print('SD method:\n optimal point: {0}, optimal value: {1}, iterations {2}'.format(sd_x, sd_y, sd_iter))
+# bfgs_x, bfgs_y, _, bfgs_iter, _ = quasiNewton(Quadratic(dim), np.ones(dim))
+# print('bfgs method:\n optimal point: {0}, optimal value: {1}, iterations {2}'.format(bfgs_x, bfgs_y, bfgs_iter))
+
+
+
+cg_x, cg_y, _, cg_iter, _ = cg(Logistic(dim, X, Y), x0 = init_point, maxiter=100)
+print('CG method:\n optimal point: {0}, optimal value: {1}, iterations {2}'.format(cg_x, cg_y, cg_iter))
+sd_x, sd_y, _, sd_iter, _ = sd(Logistic(dim, X, Y), x0=init_point, maxiter = 100)
+print('SD method:\n optimal point: {0}, optimal value: {1}, iterations {2}'.format(sd_x, sd_y, sd_iter))
+# bfgs_x, bfgs_y, _, bfgs_iter, _ = quasiNewton(Logistic(dim, X, Y), x0=init_point, maxiter=100)
+# print('bfgs method:\n optimal point: {0}, optimal value: {1}, iterations {2}'.format(bfgs_x, bfgs_y, bfgs_iter))
+
+
+if args.agent == 'naf':
+    agent = train(naf, 20000, 20)
+elif args.agent == 'ddpg':
+    agent = train(ddpg, 20000, 20)
+elif args.agent == 'cac':
+    agent = train(cac, 20000, 20)
 
 #print('after train')
 

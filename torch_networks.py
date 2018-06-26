@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributions as tds
+from torch.nn import init
 
 
 class NAF_network(nn.Module):
@@ -23,7 +24,7 @@ class NAF_network(nn.Module):
             
         def forward(self, s, a = None):
             
-            s = F.relu(self.sharefc1(s))
+            s = F.tanh(self.sharefc1(s))
             # s = F.relu(self.sharefc2(s))
             
             v = self.v_fc1(s)
@@ -37,7 +38,7 @@ class NAF_network(nn.Module):
             
             if a is None:
                 return v, miu
-            
+        
             L = self.L_fc1(s)
             L = L.view(-1, self.action_dim, self.action_dim)
             
@@ -45,8 +46,9 @@ class NAF_network(nn.Module):
              self.action_dim, self.action_dim), diagonal=-1).unsqueeze(0)
             diag_mask = torch.diag(torch.diag(
              torch.ones(self.action_dim, self.action_dim))).unsqueeze(0)
-                
-            L = L * tril_mask.expand_as(L) + torch.exp(L) * diag_mask.expand_as(L)
+
+            L = L * tril_mask.expand_as(L) +  torch.exp(L * diag_mask.expand_as(L))    
+            # L = L * tril_mask.expand_as(L) + L ** 2 * diag_mask.expand_as(L)
             
             P = torch.bmm(L, L.transpose(2, 1))
 
@@ -105,21 +107,21 @@ class DDPG_critic_network(nn.Module):
         
         super(DDPG_critic_network, self).__init__()
         
-        self.sfc1 = nn.Linear(state_dim, 15)
-        self.sfc2 = nn.Linear(15,15)
+        self.sfc1 = nn.Linear(state_dim, 30)
+        self.sfc2 = nn.Linear(30,15)
         
-        self.afc1 = nn.Linear(action_dim, 15)
-        self.afc2 = nn.Linear(15,15)
+        self.afc1 = nn.Linear(action_dim, 30)
+        self.afc2 = nn.Linear(30,15)
         
         self.sharefc1 = nn.Linear(30,30)
         self.sharefc2 = nn.Linear(30,1)
         
     def forward(self, s, a):
         s = F.relu(self.sfc1(s))
-        #s = F.relu(self.sfc2(s))
+        s = F.relu(self.sfc2(s))
         
         a = F.relu(self.afc1(a))
-        #a = F.relu(self.afc2(a))
+        a = F.relu(self.afc2(a))
         
         qsa = torch.cat((s,a), 1)
         qsa = F.relu(self.sharefc1(qsa))
@@ -176,7 +178,7 @@ class AC_a_fc_network(nn.Module):
             return F.softmax(x, dim = 1)
         
 class CAC_a_fc_network(nn.Module):
-    def __init__(self, input_dim, output_dim, action_low, action_high):
+    def __init__(self, input_dim, output_dim, action_low = -1.0, action_high = 1.0, sigma = 1):
         super(CAC_a_fc_network, self).__init__()
         self.fc1 = nn.Linear(input_dim, 64)
         self.fc2 = nn.Linear(64, 64)

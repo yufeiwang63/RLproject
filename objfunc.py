@@ -3,6 +3,7 @@
 import numpy as np
 import random
 import torch
+import math
 
 
 class ObjectiveEnvironment(object):
@@ -25,6 +26,7 @@ class ObjectiveEnvironment(object):
 
         currentValue = self.func.f(self.currentIterate)
         currentGradient = self.func.g(self.currentIterate)
+            
 
         self.historyValue = np.zeros(self.windowSize)
         self.historyValue[0] = currentValue
@@ -52,6 +54,12 @@ class ObjectiveEnvironment(object):
         done = False
         #print(self.currentIterate, currentValue)
 
+        if(math.isinf(currentValue)):
+            currentState = np.concatenate((self.currentIterate, self.historyChange,
+                                       self.historyGradient))
+
+            return currentState, -1000000, done, None
+
         if self.nIterate < self.windowSize:
 
             self.historyValue[self.nIterate] = currentValue
@@ -61,6 +69,7 @@ class ObjectiveEnvironment(object):
         else:
             self.historyValue[:-1] = self.historyValue[1:]
             self.historyValue[-1] = currentValue
+            # print('cur value is:', currentValue)
             self.historyChange = currentValue - self.historyValue
 
             self.historyGradient[:-self.dim] = self.historyGradient[self.dim:]
@@ -97,29 +106,48 @@ class Quadratic(object):
         self.dim = dim
 
     def f(self, x):
+        # x_torch = torch.tensor(x, dtype = torch.float, requires_grad = True)
+        # val = torch.sum(x_torch ** 2)
+        # val.backward()
+        # self.grad = x_torch.grad
+        # print('val item: ',val.item())
+        # return val.item()
         return np.dot(x, x)
 
     def g(self, x):
+        # print('grad: ', self.grad.data.numpy())
+        # return self.grad.data.numpy()
         return 2 * x
 
 
 class Logistic():
     """ doc for Logistic """
-    def __init__(self, dim,  X, Y):
+    def __init__(self, dim,  X, Y, lbd = 5e-4):
         self.X = torch.tensor(X, dtype = torch.float)
         self.Y = torch.tensor(Y, dtype = torch.float)
         self.dim = dim
+        self.lbd = lbd
 
     def f(self, W):
         W_torch = torch.tensor(W, dtype = torch.float, requires_grad = True)
-        val = torch.sum(self.Y * torch.log(1 / (1 + (torch.exp(torch.matmul(self.X, W_torch))))) \
-            + (1 - self.Y) * torch.log(1 - (1 / (1 + torch.exp(torch.matmul(self.X, W_torch))))))
-        val.backward()
-        self.grad = W_torch.grad
+        # val = - torch.mean(self.Y * torch.log(1 / (1 + (torch.exp(-torch.matmul(self.X, W_torch)))) + 1e-10) \
+        #     + (1 - self.Y) * torch.log( 1e-10 + 1 - (1 / (1 + torch.exp(-torch.matmul(self.X, W_torch)))))) \
+        #     + 0.5 * self.lbd * torch.sum(W_torch * W_torch)
+        val = - torch.mean(self.Y * (1 / (1 + (torch.exp(-torch.matmul(self.X, W_torch))))) \
+            + (1 - self.Y) * (1 - (1 / (1 + torch.exp(-torch.matmul(self.X, W_torch)))))) \
+            + 0.5 * self.lbd * torch.sum(W_torch * W_torch)
         return val.item()
 
     def g(self,W):
-        return self.grad 
+        W_torch = torch.tensor(W, dtype = torch.float, requires_grad = True)
+        # val = - torch.mean(self.Y * torch.log(1e-10 + 1 / (1 + (torch.exp(-torch.matmul(self.X, W_torch))))) \
+        #     + (1 - self.Y) * torch.log(1e-10 + 1 - (1 / (1 + torch.exp(-torch.matmul(self.X, W_torch)))))) \
+        #     + 0.5 * self.lbd * torch.sum(W_torch * W_torch)
+        val = - torch.mean(self.Y * (1 / (1 + (torch.exp(-torch.matmul(self.X, W_torch))))) \
+            + (1 - self.Y) * (1 - (1 / (1 + torch.exp(-torch.matmul(self.X, W_torch)))))) \
+            + 0.5 * self.lbd * torch.sum(W_torch * W_torch)
+        val.backward()
+        return W_torch.grad.data.numpy()
 
 
 

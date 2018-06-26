@@ -130,6 +130,8 @@ def inexact(fun, x, d, a_min=0.001, a_max=10,
             return zoom, neval + v
 
         phip_a1 = phip(a_1)
+        # print('phip_a1: ', phip_a1)
+        # print('phip_0: ', phip_0)
         if abs(phip_a1) <= -sigma * phip_0:
             return a_1, neval
         if phip_a1 >= 0:
