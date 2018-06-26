@@ -22,8 +22,8 @@ warnings.simplefilter("error", RuntimeWarning)
         
 
 class PPO():    
-    def __init__(self, state_dim, action_dim, action_low, action_high, mem_size = 40000, \
-       train_batch_size = 32, gamma = 0.99, actor_lr = 1e-4, critic_lr = 1e-3, 
+    def __init__(self, state_dim, action_dim, action_low = -1.0, action_high = 1.0, mem_size = 40000, 
+                 train_batch_size = 32, gamma = 0.99, actor_lr = 1e-4, critic_lr = 1e-3, 
                  tau = 0.1, eps = 0.2, update_epoach = 10, trajectory_number = 10):
         self.mem_size, self.train_batch_size = mem_size, train_batch_size
         self.gamma, self.actor_lr, self.critic_lr = gamma, actor_lr, critic_lr
@@ -110,39 +110,75 @@ class PPO():
         print("train epoach!")
         self.hard_update(self.actor_target_net, self.actor_policy_net)
         
+        advantage_mem = []
+        for traj in trajectories:
+            states = [x[0] for x in traj]
+            rewards = np.array([x[2] for x in traj])
+            length = len(traj)
+            states = torch.tensor(states, dtype = torch.float, device = self.device)
+            with torch.no_grad():
+                states_values = self.critic_target_net(states).detach().numpy().reshape(-1)
+            # print(length)
+            # print(states_values)
+            deltas = self.gamma * states_values[1:] + rewards[:-1] - states_values[:-1]
+            # print(deltas)
+            # print(traj[0][0])
+            for i in range(length - 1):
+                gammas = np.array([self.gamma ** x for x in range(length - 1 - i)])
+                advantage = np.sum(gammas * deltas[i:])
+                advantage_mem.append((traj[i][0], traj[i][1], advantage))
+
+
+        print('----------advantage memory built over----------')
+
         for _ in range(self.update_epoach):
 
             obj = 0.0
 
             # sample from trajectories a batch of (s,a, r,s') pairs to construct the objective
-            for i in range(self.train_batch_size):
+            # for i in range(self.train_batch_size):
                 # sample a (s,a,r,s') tuple
-                tj_idx = np.random.randint(0, len(trajectories))
-                chosen_tj = trajectories[tj_idx]
-                tp_idx = np.random.randint(0,len(chosen_tj))
-                chosen_tp = trajectories[tj_idx][tp_idx]
+                # tj_idx = np.random.randint(0, len(trajectories))
+                # chosen_tj = trajectories[tj_idx]
+                # tp_idx = np.random.randint(0,len(chosen_tj))
+                # chosen_tp = trajectories[tj_idx][tp_idx]
 
-                # compute advantage 
-                advantage = 0
-                for j in range(tp_idx, len(chosen_tj) - 1):
-                    with torch.no_grad():
-                        next_state = torch.tensor(chosen_tp[3], dtype = torch.float, device = self.device)
-                        current_state = torch.tensor(chosen_tp[0], dtype = torch.float, device = self.device)
-                        v_next_state = self.critic_target_net(next_state).detach()
-                        v_state = self.critic_target_net(current_state).detach()
-                    delta = chosen_tp[2] + self.gamma * v_next_state - v_state
-                    advantage += delta * self.gamma
+                # # compute advantage 
+                # advantage = 0
+                # for j in range(tp_idx, len(chosen_tj) - 1):
+                #     with torch.no_grad():
+                #         next_state = torch.tensor(chosen_tp[3], dtype = torch.float, device = self.device)
+                #         current_state = torch.tensor(chosen_tp[0], dtype = torch.float, device = self.device)
+                #         v_next_state = self.critic_target_net(next_state).detach()
+                #         v_state = self.critic_target_net(current_state).detach()
+                #     delta = chosen_tp[2] + self.gamma * v_next_state - v_state
+                #     advantage += delta * self.gamma
 
-                # construct objective:
-                action = torch.tensor(chosen_tp[1], dtype = torch.float, device = self.device)
-                old_action_prob = self.actor_target_net(current_state).log_prob(action)
-                new_action_prob = self.actor_policy_net(current_state).log_prob(action)
-                aloss1 = new_action_prob / old_action_prob * advantage
-                aloss2 = torch.clamp(new_action_prob / old_action_prob, 1 - self.eps, 1 + self.eps) * advantage
-                aloss = - torch.min(aloss1, aloss2)
-                obj += aloss
+                # # construct objective:
+                # action = torch.tensor(chosen_tp[1], dtype = torch.float, device = self.device)
+                # old_action_prob = self.actor_target_net(current_state).log_prob(action)
+                # new_action_prob = self.actor_policy_net(current_state).log_prob(action)
+                # aloss1 = new_action_prob / old_action_prob * advantage
+                # aloss2 = torch.clamp(new_action_prob / old_action_prob, 1 - self.eps, 1 + self.eps) * advantage
+                # aloss = - torch.min(aloss1, aloss2)
+                # obj += aloss
 
-            obj = obj / self.train_batch_size
+            advantage_batch = random.sample(advantage_mem, self.train_batch_size)
+            # print('advantage batch is :\n', advantage_batch)
+            states_batch = torch.tensor([x[0] for x in advantage_batch], dtype = torch.float, device = self.device).view(self.train_batch_size,-1)
+            action_batch = torch.tensor([x[1] for x in advantage_batch], dtype = torch.float, device = self.device).view(self.train_batch_size,-1)
+            # print('state_batch is:\n', states_batch)
+            # print('action batch is:\n',action_batch)
+            advantage = torch.tensor([x[2] for x in advantage_batch], dtype = torch.float)
+            old_prob = self.actor_target_net(states_batch).log_prob(action_batch)
+            new_prob = self.actor_policy_net(states_batch).log_prob(action_batch)
+            # print('old_prob is:\n', old_prob)
+            # print(advantage)
+            aloss1 = torch.exp(new_prob - old_prob) * advantage
+            aloss2 = torch.clamp(torch.exp(new_prob - old_prob), 1 - self.eps, 1 + self.eps) * advantage
+            obj = - torch.min(aloss1, aloss2)
+            obj = torch.mean(obj)
+            
             self.actor_optimizer.zero_grad()
             obj.backward()
             torch.nn.utils.clip_grad_norm_(self.actor_policy_net.parameters(),1)

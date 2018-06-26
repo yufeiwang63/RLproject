@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.distributions as tds
+from torch.distributions import multivariate_normal
 from torch.nn import init
 
 
@@ -47,8 +47,8 @@ class NAF_network(nn.Module):
             diag_mask = torch.diag(torch.diag(
              torch.ones(self.action_dim, self.action_dim))).unsqueeze(0)
 
-            L = L * tril_mask.expand_as(L) +  torch.exp(L * diag_mask.expand_as(L))    
-            # L = L * tril_mask.expand_as(L) + L ** 2 * diag_mask.expand_as(L)
+            # L = L * tril_mask.expand_as(L) +  torch.exp(L * diag_mask.expand_as(L))    
+            L = L * tril_mask.expand_as(L) + L ** 2 * diag_mask.expand_as(L)
             
             P = torch.bmm(L, L.transpose(2, 1))
 
@@ -184,7 +184,7 @@ class CAC_a_fc_network(nn.Module):
         self.fc2 = nn.Linear(64, 64)
         self.fc3 = nn.Linear(64, output_dim)
         
-        self.sigma = torch.ones((output_dim)) 
+        self.sigma = torch.eye((output_dim)) * 0.5
         self.action_low, self.action_high = action_low, action_high
     
     def forward(self, s):
@@ -193,7 +193,7 @@ class CAC_a_fc_network(nn.Module):
         mu = self.fc3(s)
         mu = torch.clamp(mu, self.action_low, self.action_high)
         
-        m = tds.normal.Normal(loc = mu, scale = self.sigma)
+        m = multivariate_normal.MultivariateNormal(loc = mu, covariance_matrix= self.sigma)
         
         return m
         

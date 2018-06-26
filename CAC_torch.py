@@ -41,8 +41,8 @@ class CAC():
         self.actor_target_net = CAC_a_fc_network(state_dim, action_dim, action_low, action_high, sigma).to(self.device)
         self.critic_policy_net = AC_v_fc_network(state_dim).to(self.device)
         self.critic_target_net = AC_v_fc_network(state_dim).to(self.device)
-        self.actor_optimizer = optim.RMSprop(self.actor_policy_net.parameters(), self.actor_lr)
-        self.critic_optimizer = optim.RMSprop(self.critic_policy_net.parameters(), self.critic_lr)
+        self.actor_optimizer = optim.Adam(self.actor_policy_net.parameters(), self.actor_lr)
+        self.critic_optimizer = optim.Adam(self.critic_policy_net.parameters(), self.critic_lr)
         self.hard_update(self.actor_target_net, self.actor_policy_net)
         self.hard_update(self.critic_target_net, self.critic_policy_net)
     
