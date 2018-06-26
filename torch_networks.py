@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.distributions import multivariate_normal
+from torch.distributions import multivariate_normal, normal
 from torch.nn import init
 
 
@@ -184,7 +184,7 @@ class CAC_a_fc_network(nn.Module):
         self.fc2 = nn.Linear(64, 64)
         self.fc3 = nn.Linear(64, output_dim)
         
-        self.sigma = torch.eye((output_dim)) * 0.5
+        self.sigma = torch.ones((output_dim)) * 2
         self.action_low, self.action_high = action_low, action_high
     
     def forward(self, s):
@@ -193,8 +193,9 @@ class CAC_a_fc_network(nn.Module):
         mu = self.fc3(s)
         mu = torch.clamp(mu, self.action_low, self.action_high)
         
-        m = multivariate_normal.MultivariateNormal(loc = mu, covariance_matrix= self.sigma)
-        
+        # m = multivariate_normal.MultivariateNormal(loc = mu, covariance_matrix= self.sigma)
+        m = normal.Normal(loc = mu, scale= self.sigma)
+
         return m
         
 
