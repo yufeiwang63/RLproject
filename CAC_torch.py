@@ -5,7 +5,7 @@ import torch.optim as optim
 import numpy as np
 import random
 from collections import deque
-from torch_networks import AC_a_fc_network, AC_v_fc_network, CAC_a_fc_network
+from torch_networks import AC_a_fc_network, AC_v_fc_network, CAC_a_fc_network, CAC_a_sigma_fc_network
 from helper_functions import SlidingMemory, PERMemory
 import warnings
 
@@ -39,6 +39,8 @@ class CAC():
         self.action_low, self.action_high = action_low, action_high
         self.actor_policy_net = CAC_a_fc_network(state_dim, action_dim, action_low, action_high, sigma).to(self.device)
         self.actor_target_net = CAC_a_fc_network(state_dim, action_dim, action_low, action_high, sigma).to(self.device)
+        self.actor_policy_net = CAC_a_sigma_fc_network(state_dim, action_dim, action_low, action_high, sigma).to(self.device)
+        self.actor_target_net = CAC_a_sigma_fc_network(state_dim, action_dim, action_low, action_high, sigma).to(self.device)
         self.critic_policy_net = AC_v_fc_network(state_dim).to(self.device)
         self.critic_target_net = AC_v_fc_network(state_dim).to(self.device)
         self.actor_optimizer = optim.Adam(self.actor_policy_net.parameters(), self.actor_lr)

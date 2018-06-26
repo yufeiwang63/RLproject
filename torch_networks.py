@@ -47,8 +47,8 @@ class NAF_network(nn.Module):
             diag_mask = torch.diag(torch.diag(
              torch.ones(self.action_dim, self.action_dim))).unsqueeze(0)
 
-            # L = L * tril_mask.expand_as(L) +  torch.exp(L * diag_mask.expand_as(L))    
-            L = L * tril_mask.expand_as(L) + L ** 2 * diag_mask.expand_as(L)
+            L = L * tril_mask.expand_as(L) +  torch.exp(L * diag_mask.expand_as(L))    
+            # L = L * tril_mask.expand_as(L) + L ** 2 * diag_mask.expand_as(L)
             
             P = torch.bmm(L, L.transpose(2, 1))
 
@@ -195,6 +195,29 @@ class CAC_a_fc_network(nn.Module):
         
         # m = multivariate_normal.MultivariateNormal(loc = mu, covariance_matrix= self.sigma)
         m = normal.Normal(loc = mu, scale= self.sigma)
+
+        return m
+
+
+class CAC_a_sigma_fc_network(nn.Module):
+    def __init__(self, input_dim, output_dim, action_low = -1.0, action_high = 1.0, sigma = 1):
+        super(CAC_a_sigma_fc_network, self).__init__()
+        self.fc1 = nn.Linear(input_dim, 64)
+        self.fc2 = nn.Linear(64, 64)
+        self.fcmu = nn.Linear(64, output_dim)
+        self.fcsigma = nn.Linear(64, output_dim)
+        
+        self.action_low, self.action_high = action_low, action_high
+    
+    def forward(self, s):
+        s = F.relu(self.fc1(s))
+        s = F.relu(self.fc2(s))
+        mu = self.fcmu(s)
+        mu = torch.clamp(mu, self.action_low, self.action_high)
+        sigma = self.fcsigma(s)
+        
+        # m = multivariate_normal.MultivariateNormal(loc = mu, covariance_matrix= self.sigma)
+        m = normal.Normal(loc = mu, scale=sigma)
 
         return m
         

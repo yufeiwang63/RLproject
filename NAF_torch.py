@@ -26,15 +26,15 @@ class NAF():
         self.policy_net = NAF_network(state_dim, action_dim, action_low, action_high).to(self.device)
         self.target_net = NAF_network(state_dim, action_dim,action_low, action_high).to(self.device)
         self.policy_net.apply(self._weight_init)
-        self.optimizer = optim.RMSprop(self.policy_net.parameters(), self.lr)
+        self.optimizer = optim.Adam(self.policy_net.parameters(), self.lr)
         self.hard_update(self.target_net, self.policy_net)
         
         self.flag = flag
     
     def _weight_init(self,m):
         if type(m) == nn.Linear:
-            torch.nn.init.xavier_uniform_(m.weight)
-            torch.nn.init.constant_(m.bias, 0.01)
+            torch.nn.init.xavier_normal_(m.weight)
+            torch.nn.init.constant_(m.bias, 0.)
     
     def soft_update(self, target, source, tau):
         for target_param, param in zip(target.parameters(), source.parameters()):

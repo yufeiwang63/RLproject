@@ -23,14 +23,14 @@ class DDPG():
         self.if_PER = if_PER
         self.actor_policy_net = DDPG_actor_network(state_dim, action_dim, action_low, action_high).to(self.device)
         self.actor_target_net = DDPG_actor_network(state_dim, action_dim,action_low, action_high).to(self.device)
-        # self.critic_policy_net = DDPG_critic_network(state_dim, action_dim).to(self.device)
-        # self.critic_target_net = DDPG_critic_network(state_dim, action_dim).to(self.device)
+        self.critic_policy_net = DDPG_critic_network(state_dim, action_dim).to(self.device)
+        self.critic_target_net = DDPG_critic_network(state_dim, action_dim).to(self.device)
         self.critic_policy_net = NAF_network(state_dim, action_dim, action_low, action_high).to(self.device)
         self.critic_target_net = NAF_network(state_dim, action_dim, action_low, action_high).to(self.device)
         self.critic_policy_net.apply(self._weight_init)
         self.actor_policy_net.apply(self._weight_init)
-        self.actor_optimizer = optim.RMSprop(self.actor_policy_net.parameters(), self.actor_lr)
-        self.critic_optimizer = optim.RMSprop(self.critic_policy_net.parameters(), self.critic_lr)
+        self.actor_optimizer = optim.Adam(self.actor_policy_net.parameters(), self.actor_lr)
+        self.critic_optimizer = optim.Adam(self.critic_policy_net.parameters(), self.critic_lr)
         self.hard_update(self.actor_target_net, self.actor_policy_net)
         self.hard_update(self.critic_target_net, self.critic_policy_net)
     

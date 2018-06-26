@@ -57,6 +57,11 @@ class PPO():
     
     # the fake training process, accmulate trajectories, keeping the API to be the same among different algorithms    
     def train(self, pre_state, action, reward, next_state, if_end):
+        # add to replay memory
+        self.replay_mem.add(pre_state, action, reward, next_state, if_end)
+        if self.replay_mem.num() < self.mem_size:
+            return
+
         # collect trajactories
         self.trajectories[self.trajectory_pointer].append([pre_state, action, reward, next_state, if_end])
         if if_end:
@@ -64,10 +69,6 @@ class PPO():
         if self.trajectory_pointer == self.trajectory_number:
             self.__train()
             self.trajectory_pointer = 0
-
-
-        # add to replay memory
-        self.replay_mem.add(pre_state, action, reward, next_state, if_end)
 
         # update the value netwrok
         if self.replay_mem.num() >= self.train_batch_size:
@@ -170,8 +171,8 @@ class PPO():
             # print('state_batch is:\n', states_batch)
             # print('action batch is:\n',action_batch)
             advantage = torch.tensor([x[2] for x in advantage_batch], dtype = torch.float)
-            old_prob = self.actor_target_net(states_batch).log_prob(action_batch)
-            new_prob = self.actor_policy_net(states_batch).log_prob(action_batch)
+            old_prob = torch.sum(self.actor_target_net(states_batch).log_prob(action_batch))
+            new_prob = torch.sum(self.actor_policy_net(states_batch).log_prob(action_batch))
             # print('old_prob is:\n', old_prob)
             # print(advantage)
             aloss1 = torch.exp(new_prob - old_prob) * advantage

@@ -91,12 +91,14 @@ Action_dim = dim
 print(Action_dim)
 
 ounoise = OUNoise(Action_dim, 8, 3, 0.9995)
-gsnoise = GaussNoise(0.2, 0.05, 0.99995)
+gsnoise = GaussNoise(0.5, 0.15, 0.99995)
 noise = gsnoise if args.noise_type == 'gauss' else ounoise
             
 
 def play(agent, num_epoch, Epoch_step, show = False):
    
+    print('agent: '.format(args.agent))
+
     final_value = []
     for epoch in range(1):
         pre_state = env.reset()
@@ -114,7 +116,7 @@ def play(agent, num_epoch, Epoch_step, show = False):
                 break
             pre_state = next_state
 
-    return final_value
+    return np.mean(np.array(final_value))
 
 
 def train(agent, Train_epoch, Epoch_step, file_name = './res.dat'):        
