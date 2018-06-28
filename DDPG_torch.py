@@ -9,6 +9,9 @@ from torch_networks import DDPG_actor_network, DDPG_critic_network, NAF_network
         
 
 class DDPG():    
+    '''
+    doc for ddpg
+    '''
     def __init__(self, state_dim, action_dim, mem_size, train_batch_size, gamma, actor_lr, critic_lr, 
                  action_low, action_high, tau, noise, if_PER = True):
         self.mem_size, self.train_batch_size = mem_size, train_batch_size
@@ -18,19 +21,19 @@ class DDPG():
         self.state_dim, self.action_dim = state_dim, action_dim
         self.action_high, self.action_low = action_high, action_low
         self.replay_mem = PERMemory(mem_size) if if_PER else SlidingMemory(mem_size)
-        #self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.device = 'cpu'
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # self.device = 'cpu'
         self.if_PER = if_PER
         self.actor_policy_net = DDPG_actor_network(state_dim, action_dim, action_low, action_high).to(self.device)
         self.actor_target_net = DDPG_actor_network(state_dim, action_dim,action_low, action_high).to(self.device)
         self.critic_policy_net = DDPG_critic_network(state_dim, action_dim).to(self.device)
         self.critic_target_net = DDPG_critic_network(state_dim, action_dim).to(self.device)
-        self.critic_policy_net = NAF_network(state_dim, action_dim, action_low, action_high).to(self.device)
-        self.critic_target_net = NAF_network(state_dim, action_dim, action_low, action_high).to(self.device)
+        self.critic_policy_net = NAF_network(state_dim, action_dim, action_low, action_high, self.device).to(self.device)
+        self.critic_target_net = NAF_network(state_dim, action_dim, action_low, action_high, self.device).to(self.device)
         self.critic_policy_net.apply(self._weight_init)
         self.actor_policy_net.apply(self._weight_init)
-        self.actor_optimizer = optim.Adam(self.actor_policy_net.parameters(), self.actor_lr)
-        self.critic_optimizer = optim.Adam(self.critic_policy_net.parameters(), self.critic_lr)
+        self.actor_optimizer = optim.RMSprop(self.actor_policy_net.parameters(), self.actor_lr)
+        self.critic_optimizer = optim.RMSprop(self.critic_policy_net.parameters(), self.critic_lr)
         self.hard_update(self.actor_target_net, self.actor_policy_net)
         self.hard_update(self.critic_target_net, self.critic_policy_net)
     
@@ -63,7 +66,7 @@ class DDPG():
             train_batch = self.replay_mem.sample(self.train_batch_size)
         else:
             train_batch, idx_batch, weight_batch = self.replay_mem.sample(self.train_batch_size)
-            weight_batch = torch.tensor(weight_batch, dtype = torch.float).unsqueeze(1)
+            weight_batch = torch.tensor(weight_batch, dtype = torch.float, device = self.device).unsqueeze(1)
         
         # adjust dtype to suit the gym default dtype
         pre_state_batch = torch.tensor([x[0] for x in train_batch], dtype=torch.float, device = self.device) 
@@ -84,7 +87,7 @@ class DDPG():
         q_pred = self.critic_policy_net(pre_state_batch, action_batch)
         
         if self.if_PER:
-            TD_error_batch = np.abs(q_target.numpy() - q_pred.detach().numpy())
+            TD_error_batch = np.abs(q_target.cpu().numpy() - q_pred.detach().cpu().numpy())
             self.replay_mem.update(idx_batch, TD_error_batch)
         
         self.critic_optimizer.zero_grad()
@@ -130,22 +133,14 @@ class DDPG():
     
     # use the policy net to choose the action with the highest Q value
     def action(self, s, add_noise = True):
+        cur_gradient = s[-self.action_dim:]
         s = torch.tensor(s, dtype=torch.float, device = self.device).unsqueeze(0)
         with torch.no_grad():
             action = self.actor_policy_net(s) 
         
+        var = np.exp(np.linalg.norm(cur_gradient)) + 0.03
         noise = self.explore.noise() if add_noise else 0.0
         # use item() to get the vanilla number instead of a tensor
         #return [np.clip(np.random.normal(action.item(), self.explore_rate), self.action_low, self.action_high)]
-        return np.clip(action.numpy()[0] + noise, self.action_low, self.action_high)
+        return np.clip(action.cpu().numpy()[0] + noise, self.action_low, self.action_high)
     
-    
-    
-    # choose an action according to the epsilon-greedy method
-    #def e_action(self, s):
-    #    p = random.random()
-    #    if p <= 1.0 / np.log(self.global_step + 3):
-    #        return random.randint(0, self.action_dim - 1)
-    #    else:
-    #        return self.action(s)
-        

@@ -11,6 +11,9 @@ from helper_functions import SlidingMemory, PERMemory
 
 
 class NAF():    
+    '''
+    doc for naf
+    '''
     def __init__(self, state_dim, action_dim, mem_size, train_batch_size, gamma, lr,
                  action_low, action_high, tau, noise, flag, if_PER = False):
         self.mem_size, self.train_batch_size = mem_size, train_batch_size
@@ -23,10 +26,10 @@ class NAF():
         self.replay_mem = PERMemory(mem_size) if if_PER else SlidingMemory(mem_size)
         #self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.device = 'cpu'
-        self.policy_net = NAF_network(state_dim, action_dim, action_low, action_high).to(self.device)
-        self.target_net = NAF_network(state_dim, action_dim,action_low, action_high).to(self.device)
+        self.policy_net = NAF_network(state_dim, action_dim, action_low, action_high, self.device).to(self.device)
+        self.target_net = NAF_network(state_dim, action_dim,action_low, action_high, self.device).to(self.device)
         self.policy_net.apply(self._weight_init)
-        self.optimizer = optim.Adam(self.policy_net.parameters(), self.lr)
+        self.optimizer = optim.RMSprop(self.policy_net.parameters(), self.lr)
         self.hard_update(self.target_net, self.policy_net)
         
         self.flag = flag
@@ -123,10 +126,12 @@ class NAF():
     
     # use the policy net to choose the action with the highest Q value
     def action(self, s, add_noise = True):
+        cur_gradient = s[-self.action_dim:]
         s = torch.tensor(s, dtype=torch.float, device = self.device).unsqueeze(0)
         with torch.no_grad():
             _, action = self.policy_net(s) 
         
+        var = np.exp(np.linalg.norm(cur_gradient)) + 0.03
         noise = self.explore.noise() if add_noise else 0.0
         # use item() to get the vanilla number instead of a tensor
         #return [np.clip(np.random.normal(action.item(), self.explore_rate), self.action_low, self.action_high)ac]
