@@ -15,7 +15,7 @@ class NAF():
     doc for naf
     '''
     def __init__(self, state_dim, action_dim, mem_size, train_batch_size, gamma, lr,
-                 action_low, action_high, tau, noise, flag, if_PER = False):
+                 action_low, action_high, tau, noise, flag = False, if_PER = False):
         self.mem_size, self.train_batch_size = mem_size, train_batch_size
         self.gamma, self.lr = gamma, lr
         self.global_step = 0
@@ -24,7 +24,7 @@ class NAF():
         self.action_high, self.action_low = action_high, action_low
         self.if_PER = if_PER
         self.replay_mem = PERMemory(mem_size) if if_PER else SlidingMemory(mem_size)
-        #self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.device = 'cpu'
         self.policy_net = NAF_network(state_dim, action_dim, action_low, action_high, self.device).to(self.device)
         self.target_net = NAF_network(state_dim, action_dim,action_low, action_high, self.device).to(self.device)
@@ -36,7 +36,7 @@ class NAF():
     
     def _weight_init(self,m):
         if type(m) == nn.Linear:
-            torch.nn.init.xavier_normal_(m.weight)
+            torch.nn.init.xavier_uniform_(m.weight)
             torch.nn.init.constant_(m.bias, 0.)
     
     def soft_update(self, target, source, tau):
@@ -84,7 +84,7 @@ class NAF():
         q_pred = self.policy_net(pre_state_batch, action_batch)
         
         if self.if_PER:
-            TD_error_batch = np.abs(q_target.numpy() - q_pred.detach().numpy())
+            TD_error_batch = np.abs(q_target.cpu().numpy() - q_pred.cpu().detach().numpy())
             self.replay_mem.update(idx_batch, TD_error_batch)
         
         self.optimizer.zero_grad()
@@ -101,7 +101,7 @@ class NAF():
         # print('loss is {0}'.format(loss))
         # # for para in self.policy_net.parameters():
         #     print('param is: \n {0} \n gradient is: \n {1}'.format(para, para.grad))
-        # torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 0.5)
+        torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 2)
         self.optimizer.step()
     
         # update target network
@@ -136,6 +136,6 @@ class NAF():
         # use item() to get the vanilla number instead of a tensor
         #return [np.clip(np.random.normal(action.item(), self.explore_rate), self.action_low, self.action_high)ac]
         #print(action.numpy()[0])
-        return np.clip(action.numpy()[0] + noise, self.action_low, self.action_high)
+        return np.clip(action.cpu().numpy()[0] + noise, self.action_low, self.action_high)
     
     

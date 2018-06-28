@@ -11,14 +11,14 @@ class NAF_network(nn.Module):
             
             self.device = device
 
-            self.sharefc1 = nn.Linear(state_dim, 30)
-            self.sharefc2 = nn.Linear(30, 30)
+            self.sharefc1 = nn.Linear(state_dim, 64)
+            self.sharefc2 = nn.Linear(64, 64)
             
-            self.v_fc1 = nn.Linear(30, 1)
+            self.v_fc1 = nn.Linear(64, 1)
             
-            self.miu_fc1 = nn.Linear(30, action_dim)
+            self.miu_fc1 = nn.Linear(64, action_dim)
             
-            self.L_fc1 = nn.Linear(30, action_dim ** 2)
+            self.L_fc1 = nn.Linear(64, action_dim ** 2)
             
             self.action_dim = action_dim
             self.action_low, self.action_high = action_low, action_high
@@ -27,7 +27,7 @@ class NAF_network(nn.Module):
         def forward(self, s, a = None):
             
             s = F.relu(self.sharefc1(s))
-            s = F.relu(self.sharefc2(s))
+            # s = F.tanh(self.sharefc2(s))
             
             v = self.v_fc1(s)
             

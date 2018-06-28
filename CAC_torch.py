@@ -34,8 +34,8 @@ class CAC():
         self.tau, self.if_PER= tau, if_PER
         self.state_dim, self.action_dim = state_dim, action_dim
         self.replay_mem = PERMemory(mem_size) if if_PER else SlidingMemory(mem_size)
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        # self.device = 'cpu'
+        # self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = 'cpu'
         self.action_low, self.action_high = action_low, action_high
         self.actor_policy_net = CAC_a_fc_network(state_dim, action_dim, action_low, action_high, sigma, self.device).to(self.device)
         self.actor_target_net = CAC_a_fc_network(state_dim, action_dim, action_low, action_high, sigma, self.device).to(self.device)
