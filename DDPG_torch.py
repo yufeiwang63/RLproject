@@ -21,15 +21,15 @@ class DDPG():
         self.state_dim, self.action_dim = state_dim, action_dim
         self.action_high, self.action_low = action_high, action_low
         self.replay_mem = PERMemory(mem_size) if if_PER else SlidingMemory(mem_size)
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        # self.device = 'cpu'
+        # self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = 'cpu'
         self.if_PER = if_PER
         self.actor_policy_net = DDPG_actor_network(state_dim, action_dim, action_low, action_high).to(self.device)
         self.actor_target_net = DDPG_actor_network(state_dim, action_dim,action_low, action_high).to(self.device)
         self.critic_policy_net = DDPG_critic_network(state_dim, action_dim).to(self.device)
         self.critic_target_net = DDPG_critic_network(state_dim, action_dim).to(self.device)
-        self.critic_policy_net = NAF_network(state_dim, action_dim, action_low, action_high, self.device).to(self.device)
-        self.critic_target_net = NAF_network(state_dim, action_dim, action_low, action_high, self.device).to(self.device)
+        # self.critic_policy_net = NAF_network(state_dim, action_dim, action_low, action_high, self.device).to(self.device)
+        # self.critic_target_net = NAF_network(state_dim, action_dim, action_low, action_high, self.device).to(self.device)
         self.critic_policy_net.apply(self._weight_init)
         self.actor_policy_net.apply(self._weight_init)
         self.actor_optimizer = optim.RMSprop(self.actor_policy_net.parameters(), self.actor_lr)

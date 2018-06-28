@@ -31,17 +31,19 @@ from dataset import LogisticDataset, NeuralNetDataset
 argparser = argparse.ArgumentParser(sys.argv[0])
 argparser.add_argument('--lr', type=float, default=1e-4)
 argparser.add_argument('--replay_size', type=int, default=20000)
-argparser.add_argument('--batch_size', type=float, default=64)
+argparser.add_argument('--batch_size', type=int, default=64)
 argparser.add_argument('--gamma', type=float, default=0.99)
 argparser.add_argument('--tau', type=float, default=0.1)
-argparser.add_argument('--noise_type', type = str, default = 'gauss')
+argparser.add_argument('--noise_type', type = str, default = 'ou')
 argparser.add_argument('--agent', type = str, default = 'ddpg')
-argparser.add_argument('--action_low', type = float, default = -0.3)
-argparser.add_argument('--action_high', type = float, default = 0.3)
+argparser.add_argument('--action_low', type = float, default = -0.1)
+argparser.add_argument('--action_high', type = float, default = 0.1)
 argparser.add_argument('--dim', type = int, default = 3)
 argparser.add_argument('--window_size', type = int, default = 10)
-argparser.add_argument('--epoch_step', type = int, default = 30)
 argparser.add_argument('--obj', type = str, default = 'logistic')
+argparser.add_argument('--max_iter', type = int, default = 50)
+argparser.add_argument('--max_epoch', type = int, default = 30000)
+argparser.add_argument('--debug', type = str, default = sys.argv[1:])
 args = argparser.parse_args()
 
 ### the env
@@ -53,6 +55,7 @@ init_point = np.arange(dim) / dim
 num_train, num_test = 20, 10
 env_train = []
 env_test = []
+
 
 if args.obj == 'logistic':
     X, Y = LogisticDataset(dim=dim)
@@ -96,7 +99,8 @@ Gamma = args.gamma
 Tau = args.tau
 Action_low = args.action_low
 Action_high = args.action_high
-Epoch_step = args.epoch_step
+max_iter = args.max_iter
+max_epoch = args.max_epoch
 
 State_dim = dim + window_size + dim * window_size
 print(State_dim)
@@ -105,20 +109,25 @@ Action_dim = dim
 print(Action_dim)
 
 ounoise = OUNoise(Action_dim, 8, 3, 0.9995)
-gsnoise = GaussNoise(2, 0.05, 0.99995)
+gsnoise = GaussNoise(5, 0.05, 0.9995)
 noise = gsnoise if args.noise_type == 'gauss' else ounoise
-            
 
-def play(agent, num_epoch, Epoch_step, test_count, show = False):
+# record the obj value and point at each iteration
+log_file = open('./general_' + str(args.agent) + '_' + str(args.obj) + '_' + '_' +  str(args.debug) + '.txt', 'w')     
+
+def play(agent, num_epoch, max_iter, test_count, show = False):
    
     final_value = []
     for epoch in range(1):
 
-        global env_test
+        global env_test, log_file
         env = env_test[test_count % num_test]
 
+        # record the value and point
+        val_record = []
+        point_record = []
         pre_state = env.reset()
-        for step in range(Epoch_step):
+        for step in range(max_iter):
             if show:
                 env.render()
             
@@ -126,16 +135,24 @@ def play(agent, num_epoch, Epoch_step, test_count, show = False):
             action = agent.action(pre_state, False)
 
             next_state, reward, done, _ = env.step(action)
-            if done or step == Epoch_step - 1:
+            val_record.append(-reward)
+            point_record.append(next_state[:dim])
+            if done or step == max_iter - 1:
                 final_val = env.get_value()
                 final_value.append(final_val)
                 break
             pre_state = next_state
 
+    # print(val_record)
+    print(' '.join(map(str, val_record)), file = log_file, end = '\n')
+    for point in point_record:
+        print(' '.join(map(str, point)), file = log_file, end = ',')
+    log_file.write('\n')
+    log_file.flush()
     return final_value
 
 
-def train(agent, Train_epoch, Epoch_step, file_name = './res.dat'):        
+def train(agent, Train_epoch, max_iter, file_name = './res.dat'):        
     output_file = open(file_name, 'w')
     for epoch in range(Train_epoch):
 
@@ -145,7 +162,7 @@ def train(agent, Train_epoch, Epoch_step, file_name = './res.dat'):
         pre_state = env.reset()
         acc_reward = 0
         
-        for step in range(Epoch_step):
+        for step in range(max_iter):
             
             # print('pre:', pre_state)
             action = agent.action(pre_state)
@@ -158,7 +175,7 @@ def train(agent, Train_epoch, Epoch_step, file_name = './res.dat'):
             acc_reward += reward
             # print('next:', next_state)
 
-            if step == Epoch_step - 1:
+            if step == max_iter - 1:
                 done = True
 
             # agent.train(state_featurize.transfer(pre_state), action, reward, state_featurize.transfer(next_state), done)
@@ -174,7 +191,7 @@ def train(agent, Train_epoch, Epoch_step, file_name = './res.dat'):
         
         if epoch % 100 == 0 and epoch > 0:
             test_count = epoch // 100
-            final_value = play(agent, 1, Epoch_step, test_count)
+            final_value = play(agent, 1, max_iter, test_count)
             print('--------------episode ', epoch,  'final_value: ', final_value, '---------------', file = output_file)
             print('--------------episode ', epoch,  'final value: ', final_value, '---------------')
 
@@ -185,11 +202,11 @@ def train(agent, Train_epoch, Epoch_step, file_name = './res.dat'):
             elif args.obj == 'neural':
                 obj = NeuralNet(dim, env.func.X, env.func.Y, **kwargs)
 
-            cg_x, cg_y, _, cg_iter, _ = cg(obj, x0 = init_point, maxiter=Epoch_step)
+            cg_x, cg_y, _, cg_iter, _ = cg(obj, x0 = init_point, maxiter=max_iter)
             print('CG method: optimal value: {0}, iterations {1}'.format(cg_y, cg_iter))
-            sd_x, sd_y, _, sd_iter, _ = sd(obj, x0=init_point, maxiter=Epoch_step)
+            sd_x, sd_y, _, sd_iter, _ = sd(obj, x0=init_point, maxiter=max_iter)
             print('SD method: optimal value: {0}, iterations {1}'.format(sd_y, sd_iter))
-            bfgs_x, bfgs_y, _, bfgs_iter, _ = quasiNewton(obj, x0=init_point, maxiter=Epoch_step)
+            bfgs_x, bfgs_y, _, bfgs_iter, _ = quasiNewton(obj, x0=init_point, maxiter=max_iter)
             print('BFGS method: optimal value: {0}, iterations {1}'.format(bfgs_y, bfgs_iter))
 
             if np.mean(np.array(final_value)) < -1.8:
@@ -215,13 +232,13 @@ cppo = PPO(State_dim, Action_dim,Action_low, Action_high, Replay_mem_size, Train
 
 
 if args.agent == 'naf':
-    agent = train(naf, args.replay_size, Epoch_step)
+    agent = train(naf, max_epoch, max_iter)
 elif args.agent == 'ddpg':
-    agent = train(ddpg, args.replay_size, Epoch_step)
+    agent = train(ddpg, max_epoch, max_iter)
 elif args.agent == 'cac':
-    agent = train(cac, args.replay_size, Epoch_step)
+    agent = train(cac, max_epoch, max_iter)
 elif args.agent == 'ppo':
-    agent = train(cppo, args.replay_size, Epoch_step)
+    agent = train(cppo, max_epoch, max_iter)
 
 #print('after train')
 
