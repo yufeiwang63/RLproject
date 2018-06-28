@@ -27,7 +27,7 @@ def LogisticDataset(dim, num = 50,  seed = 666):
     mean = np.random.rand(dim)
     X[:int(num / 2),:] = np.random.multivariate_normal(mean, co_var, size = int(num / 2))
 
-    np.random.seed(seed ** 2)
+    np.random.seed(seed * 2)
     co_var = np.random.rand(dim,dim)
     co_var = co_var.dot(co_var.T)
     mean = np.random.rand(dim)
@@ -38,11 +38,12 @@ def LogisticDataset(dim, num = 50,  seed = 666):
     Y = np.zeros(num)
     Y[:int(num / 2)] = 1
 
+    np.random.seed(seed * 3)
     perm = np.random.permutation(num)
     X = X[perm]
     Y = Y[perm]
 
-    print(X.shape, Y.shape)
+    # print(X.shape, Y.shape)
     return X, Y
 
 
@@ -90,6 +91,7 @@ def NeuralNetDataset(dim, num = 100, seed = 233):
     Y = np.zeros(num)
     Y[2*size:3*size] = 1
 
+    np.random.seed(seed * 16)
     perm = np.random.permutation(num)
     X = X[perm]
     Y = Y[perm]
