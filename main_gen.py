@@ -30,7 +30,7 @@ from dataset import LogisticDataset, NeuralNetDataset
 ## parameters
 argparser = argparse.ArgumentParser(sys.argv[0])
 argparser.add_argument('--lr', type=float, default=1e-4)
-argparser.add_argument('--replay_size', type=int, default=30000)
+argparser.add_argument('--replay_size', type=int, default=20000)
 argparser.add_argument('--batch_size', type=float, default=64)
 argparser.add_argument('--gamma', type=float, default=0.99)
 argparser.add_argument('--tau', type=float, default=0.1)
@@ -40,7 +40,8 @@ argparser.add_argument('--action_low', type = float, default = -0.3)
 argparser.add_argument('--action_high', type = float, default = 0.3)
 argparser.add_argument('--dim', type = int, default = 3)
 argparser.add_argument('--window_size', type = int, default = 10)
-argparser.add_argument('--obj', type = str, default = 'quadratic')
+argparser.add_argument('--epoch_step', type = int, default = 30)
+argparser.add_argument('--obj', type = str, default = 'logistic')
 args = argparser.parse_args()
 
 ### the env
@@ -53,25 +54,20 @@ num_train, num_test = 20, 10
 env_train = []
 env_test = []
 
-
-if args.obj == 'quadratic':
-    obj = Quadratic(dim)
-    env = objfunc.make('quadratic', dim=dim, init_point=init_point ,
-                                    window_size=window_size)
-
-elif args.obj == 'logistic':
+if args.obj == 'logistic':
     X, Y = LogisticDataset(dim=dim)
     dim = dim + 1
     obj = Logistic(dim, X, Y)
     init_point = np.arange(dim) / dim
-    env = objfunc.make('logistic', dim=dim, init_point=init_point, 
-                        window_size=window_size, other_params=[X, Y])
 
-elif args.obj == 'ackley':
-    obj = Ackley(dim)
-    init_point = np.array([7,8])
-    env = objfunc.make('ackley', dim=dim, init_point=init_point, 
-                        window_size=window_size)
+    for k in range(num_train):
+        X, Y = LogisticDataset(dim=args.dim, seed=k)
+        env_train.append(objfunc.make('logistic', dim=dim, init_point=init_point,
+                                      window_size=window_size, other_params=[X, Y]))
+    for k in range(num_test):
+        X, Y = LogisticDataset(dim=args.dim, seed=num_train+k)
+        env_test.append(objfunc.make('logistic', dim=dim, init_point=init_point,
+                                      window_size=window_size, other_params=[X, Y]))
 
 elif args.obj == 'neural':
     d, h, p, lamda = 2, 2, 2, .0005
@@ -87,6 +83,8 @@ elif args.obj == 'neural':
         X, Y = NeuralNetDataset(dim=d, seed=num_train+k)
         env_test.append(objfunc.make('neural', dim=dim, init_point=init_point,
                                       window_size=window_size, other_params=[X, Y], **kwargs))
+else:
+    raise ValueError('Invalid objective')
 
 
 ### the params
@@ -98,6 +96,7 @@ Gamma = args.gamma
 Tau = args.tau
 Action_low = args.action_low
 Action_high = args.action_high
+Epoch_step = args.epoch_step
 
 State_dim = dim + window_size + dim * window_size
 print(State_dim)
@@ -140,7 +139,7 @@ def train(agent, Train_epoch, Epoch_step, file_name = './res.dat'):
     output_file = open(file_name, 'w')
     for epoch in range(Train_epoch):
 
-        global env_train
+        global env_train, env_test
         env = env_train[epoch % num_train]
 
         pre_state = env.reset()
@@ -174,25 +173,31 @@ def train(agent, Train_epoch, Epoch_step, file_name = './res.dat'):
             pre_state = next_state
         
         if epoch % 100 == 0 and epoch > 0:
-            final_value = play(agent, 1, 20, epoch // 100)
+            test_count = epoch // 100
+            final_value = play(agent, 1, Epoch_step, test_count)
             print('--------------episode ', epoch,  'final_value: ', final_value, '---------------', file = output_file)
             print('--------------episode ', epoch,  'final value: ', final_value, '---------------')
 
-            obj = NeuralNet(dim, env.func.X, env.func.Y, **kwargs)
+            env = env_test[test_count % num_test]
 
-            cg_x, cg_y, _, cg_iter, _ = cg(obj, x0 = init_point, maxiter=20)
+            if args.obj == 'logistic':
+                obj = Logistic(args.dim, env.func.X, env.func.Y)
+            elif args.obj == 'neural':
+                obj = NeuralNet(dim, env.func.X, env.func.Y, **kwargs)
+
+            cg_x, cg_y, _, cg_iter, _ = cg(obj, x0 = init_point, maxiter=Epoch_step)
             print('CG method: optimal value: {0}, iterations {1}'.format(cg_y, cg_iter))
-            sd_x, sd_y, _, sd_iter, _ = sd(obj, x0=init_point, maxiter=20)
+            sd_x, sd_y, _, sd_iter, _ = sd(obj, x0=init_point, maxiter=Epoch_step)
             print('SD method: optimal value: {0}, iterations {1}'.format(sd_y, sd_iter))
-            # bfgs_x, bfgs_y, _, bfgs_iter, _ = quasiNewton(Logistic(dim, X, Y), x0=init_point, maxiter=20)
-            # print('bfgs method:\n optimal point: {0}, optimal value: {1}, iterations {2}'.format(bfgs_x, bfgs_y, bfgs_iter))
+            bfgs_x, bfgs_y, _, bfgs_iter, _ = quasiNewton(obj, x0=init_point, maxiter=Epoch_step)
+            print('BFGS method: optimal value: {0}, iterations {1}'.format(bfgs_y, bfgs_iter))
 
             if np.mean(np.array(final_value)) < -1.8:
                 print('----- using ', epoch, '  epochs')
                 #agent.save_model()
                 break
             time.sleep(1)
-         
+
     return agent
             
 
@@ -210,13 +215,13 @@ cppo = PPO(State_dim, Action_dim,Action_low, Action_high, Replay_mem_size, Train
 
 
 if args.agent == 'naf':
-    agent = train(naf, 20000, 20)
+    agent = train(naf, args.replay_size, Epoch_step)
 elif args.agent == 'ddpg':
-    agent = train(ddpg, 20000, 20)
+    agent = train(ddpg, args.replay_size, Epoch_step)
 elif args.agent == 'cac':
-    agent = train(cac, 20000, 20)
+    agent = train(cac, args.replay_size, Epoch_step)
 elif args.agent == 'ppo':
-    agent = train(cppo, 20000, 20)
+    agent = train(cppo, args.replay_size, Epoch_step)
 
 #print('after train')
 
