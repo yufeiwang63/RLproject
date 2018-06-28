@@ -6,9 +6,11 @@ from torch.nn import init
 
 
 class NAF_network(nn.Module):
-        def __init__(self, state_dim, action_dim, action_low, action_high):
+        def __init__(self, state_dim, action_dim, action_low, action_high, device = 'cpu'):
             super(NAF_network, self).__init__()
             
+            self.device = device
+
             self.sharefc1 = nn.Linear(state_dim, 30)
             self.sharefc2 = nn.Linear(30, 30)
             
@@ -24,8 +26,8 @@ class NAF_network(nn.Module):
             
         def forward(self, s, a = None):
             
-            s = F.tanh(self.sharefc1(s))
-            # s = F.relu(self.sharefc2(s))
+            s = F.relu(self.sharefc1(s))
+            s = F.relu(self.sharefc2(s))
             
             v = self.v_fc1(s)
             
@@ -43,9 +45,9 @@ class NAF_network(nn.Module):
             L = L.view(-1, self.action_dim, self.action_dim)
             
             tril_mask = torch.tril(torch.ones(
-             self.action_dim, self.action_dim), diagonal=-1).unsqueeze(0)
+             self.action_dim, self.action_dim, device = self.device), diagonal=-1).unsqueeze(0)
             diag_mask = torch.diag(torch.diag(
-             torch.ones(self.action_dim, self.action_dim))).unsqueeze(0)
+             torch.ones(self.action_dim, self.action_dim, device = self.device))).unsqueeze(0)
 
             L = L * tril_mask.expand_as(L) +  torch.exp(L * diag_mask.expand_as(L))    
             # L = L * tril_mask.expand_as(L) + L ** 2 * diag_mask.expand_as(L)
@@ -178,13 +180,13 @@ class AC_a_fc_network(nn.Module):
             return F.softmax(x, dim = 1)
         
 class CAC_a_fc_network(nn.Module):
-    def __init__(self, input_dim, output_dim, action_low = -1.0, action_high = 1.0, sigma = 1):
+    def __init__(self, input_dim, output_dim, action_low = -1.0, action_high = 1.0, sigma = 1, device = 'cpu'):
         super(CAC_a_fc_network, self).__init__()
         self.fc1 = nn.Linear(input_dim, 64)
         self.fc2 = nn.Linear(64, 64)
         self.fc3 = nn.Linear(64, output_dim)
         
-        self.sigma = torch.ones((output_dim)) * 2
+        self.sigma = torch.ones((output_dim), device = device) * sigma
         self.action_low, self.action_high = action_low, action_high
     
     def forward(self, s):
@@ -215,8 +217,8 @@ class CAC_a_sigma_fc_network(nn.Module):
         mu = self.fcmu(s)
         mu = torch.clamp(mu, self.action_low, self.action_high)
         sigma = self.fcsigma(s)
+        sigma = F.softplus(sigma)
         
-        # m = multivariate_normal.MultivariateNormal(loc = mu, covariance_matrix= self.sigma)
         m = normal.Normal(loc = mu, scale=sigma)
 
         return m

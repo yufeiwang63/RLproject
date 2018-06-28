@@ -26,7 +26,7 @@ class CAC():
     def __init__(self, state_dim, action_dim, mem_size = 10000, train_batch_size = 64, \
                  gamma = 0.99, actor_lr = 1e-4, critic_lr = 1e-4, \
                  action_low = -1.0, action_high = 1.0, tau = 0.1, \
-                 sigma = 1, if_PER = True):
+                 sigma = 2, if_PER = True):
         
         self.mem_size, self.train_batch_size = mem_size, train_batch_size
         self.gamma, self.actor_lr, self.critic_lr = gamma, actor_lr, critic_lr
@@ -34,11 +34,11 @@ class CAC():
         self.tau, self.if_PER= tau, if_PER
         self.state_dim, self.action_dim = state_dim, action_dim
         self.replay_mem = PERMemory(mem_size) if if_PER else SlidingMemory(mem_size)
-        #self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.device = 'cpu'
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # self.device = 'cpu'
         self.action_low, self.action_high = action_low, action_high
-        self.actor_policy_net = CAC_a_fc_network(state_dim, action_dim, action_low, action_high, sigma).to(self.device)
-        self.actor_target_net = CAC_a_fc_network(state_dim, action_dim, action_low, action_high, sigma).to(self.device)
+        self.actor_policy_net = CAC_a_fc_network(state_dim, action_dim, action_low, action_high, sigma, self.device).to(self.device)
+        self.actor_target_net = CAC_a_fc_network(state_dim, action_dim, action_low, action_high, sigma, self.device).to(self.device)
         self.actor_policy_net = CAC_a_sigma_fc_network(state_dim, action_dim, action_low, action_high, sigma).to(self.device)
         self.actor_target_net = CAC_a_sigma_fc_network(state_dim, action_dim, action_low, action_high, sigma).to(self.device)
         self.critic_policy_net = AC_v_fc_network(state_dim).to(self.device)
@@ -106,8 +106,10 @@ class CAC():
         
         self.actor_optimizer.zero_grad()
         
-        
-        log_action_prob = self.actor_policy_net(pre_state_batch).log_prob(action_batch)
+        dist = self.actor_policy_net(pre_state_batch)
+        log_action_prob = dist.log_prob(action_batch)
+        log_action_prob = torch.sum(log_action_prob, dim = 1)
+        entropy = torch.mean(dist.entropy()) * 0.05
         
         with torch.no_grad(): 
             v_next_state = self.critic_policy_net(next_state_batch).detach()
@@ -115,7 +117,7 @@ class CAC():
             TD_error = v_target - self.critic_policy_net(pre_state_batch).detach()
             
         aloss = -log_action_prob * TD_error
-        aloss = aloss.mean()
+        aloss = aloss.mean() - entropy
         aloss.backward()
         torch.nn.utils.clip_grad_norm_(self.actor_policy_net.parameters(),2)
         self.actor_optimizer.step()
@@ -135,10 +137,12 @@ class CAC():
     # use the policy net to choose the action with the highest Q value
     def action(self, s, sample = True): # use flag to suit other models' action interface
         s = torch.tensor(s, dtype=torch.float, device = self.device).unsqueeze(0)
+        # print(s)
         with torch.no_grad():
             m = self.actor_policy_net(s)
+            # print(m)
             a = np.clip(m.sample(), self.action_low, self.action_high) if sample else m.mean
-            return a.numpy()[0]
+            return a.cpu().numpy()[0]
     
         
     

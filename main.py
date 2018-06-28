@@ -31,7 +31,7 @@ from dataset import LogisticDataset, NeuralNetDataset
 argparser = argparse.ArgumentParser(sys.argv[0])
 argparser.add_argument('--lr', type=float, default=1e-4)
 argparser.add_argument('--replay_size', type=int, default=30000)
-argparser.add_argument('--batch_size', type=float, default=64)
+argparser.add_argument('--batch_size', type=float, default=128)
 argparser.add_argument('--gamma', type=float, default=0.99)
 argparser.add_argument('--tau', type=float, default=0.1)
 argparser.add_argument('--noise_type', type = str, default = 'gauss')
@@ -41,12 +41,14 @@ argparser.add_argument('--action_high', type = float, default = 0.3)
 argparser.add_argument('--dim', type = int, default = 3)
 argparser.add_argument('--window_size', type = int, default = 10)
 argparser.add_argument('--obj', type = str, default = 'quadratic')
+argparser.add_argument('--sigma', type = float, default = 1)
+argparser.add_argument('--debug', type = str, default = sys.argv[1:])
 args = argparser.parse_args()
 
 ### the env
 dim = args.dim
 window_size = args.window_size
-init_point = np.arange(dim) / dim
+init_point = np.arange(dim) / (dim / 2)
 
 if args.obj == 'quadratic':
     env = objfunc.make('quadratic', dim=dim, init_point=init_point ,
@@ -91,13 +93,13 @@ Action_dim = dim
 print(Action_dim)
 
 ounoise = OUNoise(Action_dim, 8, 3, 0.9995)
-gsnoise = GaussNoise(0.5, 0.15, 0.99995)
+gsnoise = GaussNoise(5, 0.2, 0.9995)
 noise = gsnoise if args.noise_type == 'gauss' else ounoise
             
 
 def play(agent, num_epoch, Epoch_step, show = False):
    
-    print('agent: '.format(args.agent))
+    print('debug info: ', args.debug)
 
     final_value = []
     for epoch in range(1):
@@ -166,16 +168,16 @@ def train(agent, Train_epoch, Epoch_step, file_name = './res.dat'):
             
 
 naf = NAF(State_dim, Action_dim, Replay_mem_size, Train_batch_size,
-          Gamma, Critic_Learning_rate, Action_low, Action_high, Tau, noise, False, False)  
+          Gamma, Critic_Learning_rate, Action_low, Action_high, Tau, noise, flag = False, if_PER = False)  
 
 ddpg = DDPG(State_dim, Action_dim, Replay_mem_size, Train_batch_size,
-             Gamma, Actor_Learning_rate, Critic_Learning_rate, Action_low, Action_high, Tau, noise, False) 
+             Gamma, Actor_Learning_rate, Critic_Learning_rate, Action_low, Action_high, Tau, noise, if_PER=True) 
 
 cac = CAC(State_dim, Action_dim, Replay_mem_size, Train_batch_size,
-             Gamma, Actor_Learning_rate, Critic_Learning_rate,  Action_low, Action_high, Tau, False)
+             Gamma, Actor_Learning_rate, Critic_Learning_rate,  Action_low, Action_high, Tau, sigma=args.sigma, if_PER=False)
 
 cppo = PPO(State_dim, Action_dim,Action_low, Action_high, Replay_mem_size, Train_batch_size, Gamma, 
-            Actor_Learning_rate, Critic_Learning_rate, Tau, trajectory_number=100, update_epoach=20)
+            Actor_Learning_rate, Critic_Learning_rate, Tau, trajectory_number=100, update_epoach=50)
 
 
 if args.obj == 'quadratic':

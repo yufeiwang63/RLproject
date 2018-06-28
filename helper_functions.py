@@ -86,8 +86,8 @@ class GaussNoise():
         self.var *= self.decay
         self.var = max(self.final_var, self.var)
         
-    def noise(self):
-        return np.random.normal(0, self.var)
+    def noise(self, var = None):
+        return np.random.normal(0, self.var) if var is None else np.random.normal(0, var) 
     
     def noisescale(self):
         return self.var
