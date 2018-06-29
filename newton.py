@@ -187,7 +187,7 @@ def modifiedNewton(fun, x0, method='mix', search='inexact',
 
 
 def quasiNewton(fun, x0, H0=None, method='bfgs', search='inexact', 
-                eps=1e-8, maxiter=1000, **kwargs):
+                eps=1e-8, maxiter=1000, a_high=.3, **kwargs):
     """Quasi-Newton methods: SR1 / DFP / BFGS
 
     Parameters
@@ -252,6 +252,8 @@ def quasiNewton(fun, x0, H0=None, method='bfgs', search='inexact',
             raise ValueError('Invalid search type')
 
         s = alpha * d
+        if norm(s, np.inf) > a_high:
+            s = s / norm(s, np.inf) * a_high
         x = x + s
 
         g0 = g1
@@ -291,43 +293,4 @@ def quasiNewton(fun, x0, H0=None, method='bfgs', search='inexact',
             break
 
     return x, f1, norm(g1), niter, neval, flist, xlist
-
-
-def momentum(fun, x0, H0=None, method='bfgs', search='inexact', 
-                eps=1e-8, maxiter=1000, **kwargs):
-    """Quasi-Newton methods: SR1 / DFP / BFGS
-
-    Parameters
-    ----------
-    fun: object
-        objective function, with callable method f and g
-    x0: ndarray
-        initial point
-    H0: ndarray, optional
-        initial Hessian inverse, identity by default
-    method: string, optional
-        'sr1' for SR1, 'dfp' for DFP, 'bfgs' for BFGS
-    search: string, optional
-        'exact' for exact line search, 'inexact' for inexact line search
-    eps: float, optional
-        tolerance, used for convergence criterion
-    maxiter: int, optional
-        maximum number of iterations
-    kwargs: dict, optional
-        other arguments to pass down
-
-    Returns
-    -------
-    x: ndarray
-        optimal point
-    f: float
-        optimal function value
-    gnorm: float
-        norm of gradient at optimal point
-    niter: int
-        number of iterations
-    neval: int
-        number of function evaluations (f and g)
-    """
-    return 1
 

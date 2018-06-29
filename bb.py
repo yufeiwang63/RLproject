@@ -99,13 +99,13 @@ def bb(fun, x0, eps=1e-8, maxiter=10000, debug=False,
     return x, f1, gnorm, niter, neval
 
 
-def sd(fun, x0, search='inexact', eps=1e-8, maxiter=10000, **kwargs):
+def sd(fun, x0, search='inexact', eps=1e-8, maxiter=10000, a_high=.3, **kwargs):
     """Steepest descent
 
     Parameters
     ----------
     fun: object
-        objective function, with callable method f, g and G
+        objective function, with callable method f, g
     x0: ndarray
         initial point
     search: string, optional
@@ -128,7 +128,11 @@ def sd(fun, x0, search='inexact', eps=1e-8, maxiter=10000, **kwargs):
     niter: int
         number of iterations
     neval: int
-        number of function evaluations (f, g and G)
+        number of function evaluations (f and g)
+    flist: list
+        list of objective values along the iterations
+    xlist: list
+        list of points along the iterations
     """
     x = x0
     f0 = -np.inf
@@ -136,6 +140,9 @@ def sd(fun, x0, search='inexact', eps=1e-8, maxiter=10000, **kwargs):
     g1 = fun.g(x0)
     niter = 0
     neval = 2
+
+    flist = []
+    xlist = []
 
     while (abs(f1 - f0) > eps) or (norm(g1) > eps):
         d = -g1
@@ -147,14 +154,101 @@ def sd(fun, x0, search='inexact', eps=1e-8, maxiter=10000, **kwargs):
         else:
             raise ValueError('Invalid search type')
 
-        x = x + alpha * d
+        d = alpha * d
+        if norm(d, np.inf) > a_high:
+            d = d / norm(d, np.inf) * a_high
+        x = x + d
 
         f0 = f1
         f1 = fun.f(x)
         g1 = fun.g(x)
+
+        flist.append(f1)
+        xlist.append(x)
+        
         niter += 1
         neval += (v + 2)
         if niter == maxiter:
             break
 
-    return x, f1, norm(g1), niter, neval
+    return x, f1, norm(g1), niter, neval, flist, xlist
+
+
+def momentum(fun, x0, search='inexact',
+             eps=1e-8, maxiter=10000, beta=.9, a_high=.3, **kwargs):
+    """Momentum
+
+    Parameters
+    ----------
+    fun: object
+        objective function, with callable method f, g
+    x0: ndarray
+        initial point
+    search: string, optional
+        'exact' for exact line search, 'inexact' for inexact line search
+    eps: float, optional
+        tolerance, used for convergence criterion
+    maxiter: int, optional
+        maximum number of iterations
+    kwargs: dict, optional
+        other arguments to pass down
+
+    Returns
+    -------
+    x: ndarray
+        optimal point
+    f: float
+        optimal function value
+    gnorm: float
+        norm of gradient at optimal point
+    niter: int
+        number of iterations
+    neval: int
+        number of function evaluations (f and g)
+    flist: list
+        list of objective values along the iterations
+    xlist: list
+        list of points along the iterations
+    """
+    x = x0
+    f0 = -np.inf
+    f1 = fun.f(x0)
+    g1 = fun.g(x0)
+    niter = 0
+    neval = 2
+
+    d0 = np.zeros(x.size)
+
+    flist = []
+    xlist = []
+
+    while (abs(f1 - f0) > eps) or (norm(g1) > eps):
+        d = beta * d0 - g1
+
+        if search == 'inexact':
+            alpha, v = ls.inexact(fun, x, d, fx=f1, gx=g1, **kwargs)
+        elif search == 'exact':
+            alpha, v = ls.exact(fun, x, d, **kwargs)
+        else:
+            raise ValueError('Invalid search type')
+
+        d = alpha * d
+        if norm(d, np.inf) > a_high:
+            d = d / norm(d, np.inf) * a_high
+
+        x = x + d
+
+        f0 = f1
+        f1 = fun.f(x)
+        g1 = fun.g(x)
+        d0 = alpha * d
+
+        flist.append(f1)
+        xlist.append(x)
+        
+        niter += 1
+        neval += (v + 2)
+        if niter == maxiter:
+            break
+
+    return x, f1, norm(g1), niter, neval, flist, xlist

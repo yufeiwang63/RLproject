@@ -21,7 +21,7 @@ import linesearch as ls
 
 
 def cg(fun, x0, method='prp+', search='inexact', 
-       eps=1e-8, maxiter=10000, nu=0.2, debug=False, **kwargs):
+       eps=1e-8, maxiter=10000, nu=0.2, a_high=.3, debug=False, **kwargs):
     """Non-linear conjugate gradient methods
 
     Parameters
@@ -58,6 +58,10 @@ def cg(fun, x0, method='prp+', search='inexact',
         number of iterations
     neval: int
         number of function evaluations (f and g)
+    flist: list
+        list of objective values along the iterations
+    xlist: list
+        list of points along the iterations
     """
     
     x = x0
@@ -70,6 +74,9 @@ def cg(fun, x0, method='prp+', search='inexact',
     niter = 0
     neval = 2
 
+    flist = []
+    xlist = []
+
     while (abs(f1 - f0) > eps) or (norm(g1) > eps):
         if abs(np.dot(g1, g0)) > 0.2 * np.dot(g1, g1):
             d = -g1
@@ -81,7 +88,10 @@ def cg(fun, x0, method='prp+', search='inexact',
         else:
             raise ValueError('Invalid search type')
 
-        x = x + alpha * d
+        d = alpha * d
+        if norm(d, np.inf) > a_high:
+            d = d / norm(d, np.inf) * a_high
+        x = x + d
 
         g0 = g1
         g1 = fun.g(x)
@@ -90,6 +100,9 @@ def cg(fun, x0, method='prp+', search='inexact',
         f0 = f1
         f1 = fun.f(x)
         neval += (v + 2)
+
+        flist.append(f1)
+        xlist.append(x)
 
         if debug:
             print('iter:', niter, alpha)
@@ -115,5 +128,5 @@ def cg(fun, x0, method='prp+', search='inexact',
         if niter == maxiter:
             break
 
-    return x, f1, norm(g1), niter, neval
+    return x, f1, norm(g1), niter, neval, flist, xlist
 
