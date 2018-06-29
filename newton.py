@@ -221,6 +221,10 @@ def quasiNewton(fun, x0, H0=None, method='bfgs', search='inexact',
         number of iterations
     neval: int
         number of function evaluations (f and g)
+    flist: list
+        list of objective values along the iterations
+    xlist: list
+        list of points along the iterations
     """
     x = x0
     if H0 is not None:
@@ -234,6 +238,9 @@ def quasiNewton(fun, x0, H0=None, method='bfgs', search='inexact',
     g1 = fun.g(x)
     niter = 0
     neval = 2
+
+    flist = []
+    xlist = []
 
     while (abs(f1 - f0) > eps) or (norm(g1) > eps):
         d = -(H @ g1)
@@ -258,6 +265,9 @@ def quasiNewton(fun, x0, H0=None, method='bfgs', search='inexact',
         f1 = fun.f(x)
         neval += (v + 2)
 
+        flist.append(f1)
+        xlist.append(x)
+
         if method == 'sr1':
             z = s - H @ y
             if abs(np.dot(z, y)) >= eps * norm(z) * norm(y):
@@ -280,7 +290,7 @@ def quasiNewton(fun, x0, H0=None, method='bfgs', search='inexact',
         if niter == maxiter:
             break
 
-    return x, f1, norm(g1), niter, neval
+    return x, f1, norm(g1), niter, neval, flist, xlist
 
 
 def momentum(fun, x0, H0=None, method='bfgs', search='inexact', 
