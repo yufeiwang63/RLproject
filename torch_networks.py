@@ -126,7 +126,7 @@ class DDPG_critic_network(nn.Module):
         # a = F.relu(self.afc2(a))
         
         qsa = torch.cat((s,a), 1)
-        # qsa = F.relu(self.sharefc1(qsa))
+        qsa = F.relu(self.sharefc1(qsa))
         qsa = self.sharefc2(qsa)
         
         return qsa
@@ -145,7 +145,7 @@ class DDPG_actor_network(nn.Module):
     def forward(self, s):
         
         s = F.relu(self.fc1(s))
-        # s = F.relu(self.fc2(s))
+        s = F.relu(self.fc2(s))
         a = self.fc3(s)
         a = a.clamp(self.action_low, self.action_high)
         

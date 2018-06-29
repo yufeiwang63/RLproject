@@ -115,6 +115,7 @@ noise = gsnoise if args.noise_type == 'gauss' else ounoise
 # record the obj value and point at each iteration
 log_file = open('./general_' + str(args.agent) + '_' + str(args.obj) + '_' + '_' +  str(args.debug) + '.txt', 'w')     
 save_path = './record/general_' + str(args.obj) + str(args.agent)
+test_record = [[] for i in range(num_test)]
 
 def play(agent, num_epoch, max_iter, test_count, show = False):
    
@@ -151,6 +152,7 @@ def play(agent, num_epoch, max_iter, test_count, show = False):
         print(' '.join(map(str, point)), file = log_file, end = ',')
     log_file.write('\n')
     log_file.flush()
+    test_record[test_count % num_test].append(final_val)
     return final_value
 
 
@@ -195,7 +197,8 @@ def train(agent, Train_epoch, max_iter, file_name = './res.dat'):
             test_count = epoch // 100
             final_value = play(agent, 1, max_iter, test_count)
             print('--------------episode ', epoch,  'final_value: ', final_value, '---------------', file = output_file)
-            print('--------------episode ', epoch,  'final value: ', final_value, '---------------')
+            print('--------------episode ', epoch,  'test_id', test_count % num_test, 'final value: ', 
+                test_record[test_count % num_test], '---------------')
 
             env = env_test[test_count % num_test]
 
