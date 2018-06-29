@@ -13,7 +13,7 @@ class DDPG():
     doc for ddpg
     '''
     def __init__(self, state_dim, action_dim, mem_size, train_batch_size, gamma, actor_lr, critic_lr, 
-                 action_low, action_high, tau, noise, if_PER = True):
+                 action_low, action_high, tau, noise, if_PER = True, save_path = './record/ddpg'):
         self.mem_size, self.train_batch_size = mem_size, train_batch_size
         self.gamma, self.actor_lr, self.critic_lr = gamma, actor_lr, critic_lr
         self.global_step = 0
@@ -36,6 +36,7 @@ class DDPG():
         self.critic_optimizer = optim.RMSprop(self.critic_policy_net.parameters(), self.critic_lr)
         self.hard_update(self.actor_target_net, self.actor_policy_net)
         self.hard_update(self.critic_target_net, self.critic_policy_net)
+        self.save_path = save_path
     
     def _weight_init(self,m):
         if type(m) == nn.Linear:
@@ -97,7 +98,7 @@ class DDPG():
             
         closs = torch.mean(closs)
         closs.backward()
-        # torch.nn.utils.clip_grad_norm_(self.critic_policy_net.parameters(), 2)
+        torch.nn.utils.clip_grad_norm_(self.critic_policy_net.parameters(), 2)
         self.critic_optimizer.step()
         
         self.actor_optimizer.zero_grad()
@@ -110,7 +111,7 @@ class DDPG():
         #     print('grad is {0}'.format(para.grad))
             # if torch.max(para.grad).numpy() == 0:
             #     raise('why all 0?') 
-        # torch.nn.utils.clip_grad_norm_(self.actor_policy_net.parameters(), 2)
+        torch.nn.utils.clip_grad_norm_(self.actor_policy_net.parameters(), 2)
         self.actor_optimizer.step()
     
 
@@ -144,3 +145,8 @@ class DDPG():
         #return [np.clip(np.random.normal(action.item(), self.explore_rate), self.action_low, self.action_high)]
         return np.clip(action.cpu().numpy()[0] + noise, self.action_low, self.action_high)
     
+
+    def save(self, save_path = None):
+        path = save_path if save_path is not None else self.save_path
+        torch.save(self.actor_policy_net.state_dict(), path + '_actor.txt' )
+        torch.save(self.critic_policy_net.state_dict(), path + '_critic.txt')

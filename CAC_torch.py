@@ -26,7 +26,7 @@ class CAC():
     def __init__(self, state_dim, action_dim, mem_size = 10000, train_batch_size = 64, \
                  gamma = 0.99, actor_lr = 1e-4, critic_lr = 1e-4, \
                  action_low = -1.0, action_high = 1.0, tau = 0.1, \
-                 sigma = 2, if_PER = True):
+                 sigma = 2, if_PER = True, save_path = '/record/cac'):
         
         self.mem_size, self.train_batch_size = mem_size, train_batch_size
         self.gamma, self.actor_lr, self.critic_lr = gamma, actor_lr, critic_lr
@@ -143,6 +143,11 @@ class CAC():
             # print(m)
             a = np.clip(m.sample(), self.action_low, self.action_high) if sample else m.mean
             return a.cpu().numpy()[0]
+
+    def save(self, save_path = None):
+        path = save_path if save_path is not None else self.save_path
+        torch.save(self.actor_policy_net.state_dict(), path + '_actor.txt' )
+        torch.save(self.critic_policy_net.state_dict(), path + '_critic.txt')
     
         
     

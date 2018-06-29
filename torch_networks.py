@@ -27,7 +27,7 @@ class NAF_network(nn.Module):
         def forward(self, s, a = None):
             
             s = F.relu(self.sharefc1(s))
-            # s = F.tanh(self.sharefc2(s))
+            # s = F.relu(self.sharefc2(s))
             
             v = self.v_fc1(s)
             
@@ -109,25 +109,25 @@ class DDPG_critic_network(nn.Module):
         
         super(DDPG_critic_network, self).__init__()
         
-        self.sfc1 = nn.Linear(state_dim, 30)
-        self.sfc2 = nn.Linear(30,15)
+        self.sfc1 = nn.Linear(state_dim, 32)
+        # self.sfc2 = nn.Linear(64,32)
         
-        self.afc1 = nn.Linear(action_dim, 30)
-        self.afc2 = nn.Linear(30,15)
+        self.afc1 = nn.Linear(action_dim, 32)
+        # self.afc2 = nn.Linear(64,32)
         
-        self.sharefc1 = nn.Linear(30,30)
-        self.sharefc2 = nn.Linear(30,1)
+        self.sharefc1 = nn.Linear(64,64)
+        self.sharefc2 = nn.Linear(64,1)
         
     def forward(self, s, a):
         s = F.relu(self.sfc1(s))
-        s = F.relu(self.sfc2(s))
+        # s = F.relu(self.sfc2(s))
         
         a = F.relu(self.afc1(a))
-        a = F.relu(self.afc2(a))
+        # a = F.relu(self.afc2(a))
         
         qsa = torch.cat((s,a), 1)
-        qsa = F.relu(self.sharefc1(qsa))
-        qsa = self.sharefc1(qsa)
+        # qsa = F.relu(self.sharefc1(qsa))
+        qsa = self.sharefc2(qsa)
         
         return qsa
     
@@ -136,15 +136,17 @@ class DDPG_actor_network(nn.Module):
         
         super(DDPG_actor_network, self).__init__()
         
-        self.fc1 = nn.Linear(state_dim, 30)
-        self.fc2 = nn.Linear(30, action_dim)
+        self.fc1 = nn.Linear(state_dim, 64)
+        self.fc2 = nn.Linear(64, 64)
+        self.fc3 = nn.Linear(64, action_dim)
         
         self.action_low, self.action_high = action_low, action_high
         
     def forward(self, s):
         
         s = F.relu(self.fc1(s))
-        a = self.fc2(s)
+        # s = F.relu(self.fc2(s))
+        a = self.fc3(s)
         a = a.clamp(self.action_low, self.action_high)
         
         return a
@@ -160,8 +162,8 @@ class AC_v_fc_network(nn.Module):
         
     def forward(self, s):
         s = F.relu(self.fc1(s))
-        v = F.relu(self.fc2(s))
-        v = self.fc3(v)
+        # s = F.relu(self.fc2(s))
+        v = self.fc3(s)
         
         return v
     
@@ -174,7 +176,7 @@ class AC_a_fc_network(nn.Module):
             
         def forward(self, x):
             x = F.relu(self.fc1(x))
-            x = F.relu(self.fc2(x))
+            # x = F.relu(self.fc2(x))
             x = self.fc3(x)
             
             return F.softmax(x, dim = 1)
@@ -191,7 +193,7 @@ class CAC_a_fc_network(nn.Module):
     
     def forward(self, s):
         s = F.relu(self.fc1(s))
-        s = F.relu(self.fc2(s))
+        # s = F.relu(self.fc2(s))
         mu = self.fc3(s)
         mu = torch.clamp(mu, self.action_low, self.action_high)
         
@@ -213,7 +215,7 @@ class CAC_a_sigma_fc_network(nn.Module):
     
     def forward(self, s):
         s = F.relu(self.fc1(s))
-        s = F.relu(self.fc2(s))
+        # s = F.relu(self.fc2(s))
         mu = self.fcmu(s)
         mu = torch.clamp(mu, self.action_low, self.action_high)
         sigma = self.fcsigma(s)

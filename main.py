@@ -96,13 +96,14 @@ print(State_dim)
 Action_dim = dim
 print(Action_dim)
 
-ounoise = OUNoise(Action_dim, 8, 2, 0.9995)
-gsnoise = GaussNoise(2, 0.1, 0.99995)
+ounoise = OUNoise(Action_dim, 8, 1, 0.9999)
+gsnoise = GaussNoise(2, 0.4, 0.99995)
 noise = gsnoise if args.noise_type == 'gauss' else ounoise
 
 # record the test objective values of RL algorithms    
 # RL_value = np.zeros((max_epoch, max_iter))
-log_file = open('./' + str(args.agent) + '_' + str(args.obj) + '_' + str(init_point) + '_' + str(args.debug) + '.txt', 'w')
+log_file = open('./' + str(args.agent) + '_' + str(args.obj) + '_' + str(args.debug) + '.txt', 'w')
+save_path = './record/' + str(args.obj) + str(args.agent)
 
 def play(agent, test_count, Epoch_step, show = False):
    
@@ -158,6 +159,7 @@ def train(agent, Train_epoch, Epoch_step):
                 raise('nan error!')
 
             next_state, reward, done, _ = env.step(action)
+            reward *= step ** 0.2
             acc_reward += reward
             # print('next:', next_state)
 
@@ -181,6 +183,10 @@ def train(agent, Train_epoch, Epoch_step):
                 #agent.save_model()
                 break
             time.sleep(1)
+
+        if epoch % 500 == 0 and epoch > 0:
+            path = save_path + str(epoch)
+            agent.save(save_path=path)
          
     return agent
             

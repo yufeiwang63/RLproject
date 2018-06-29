@@ -30,19 +30,19 @@ from dataset import LogisticDataset, NeuralNetDataset
 ## parameters
 argparser = argparse.ArgumentParser(sys.argv[0])
 argparser.add_argument('--lr', type=float, default=1e-4)
-argparser.add_argument('--replay_size', type=int, default=20000)
-argparser.add_argument('--batch_size', type=int, default=64)
-argparser.add_argument('--gamma', type=float, default=0.99)
+argparser.add_argument('--replay_size', type=int, default=50000)
+argparser.add_argument('--batch_size', type=int, default=128)
+argparser.add_argument('--gamma', type=float, default=1)
 argparser.add_argument('--tau', type=float, default=0.1)
-argparser.add_argument('--noise_type', type = str, default = 'ou')
+argparser.add_argument('--noise_type', type = str, default = 'gauss')
 argparser.add_argument('--agent', type = str, default = 'ddpg')
 argparser.add_argument('--action_low', type = float, default = -0.1)
 argparser.add_argument('--action_high', type = float, default = 0.1)
 argparser.add_argument('--dim', type = int, default = 3)
 argparser.add_argument('--window_size', type = int, default = 10)
-argparser.add_argument('--obj', type = str, default = 'logistic')
+argparser.add_argument('--obj', type = str, default = 'neural')
 argparser.add_argument('--max_iter', type = int, default = 50)
-argparser.add_argument('--max_epoch', type = int, default = 30000)
+argparser.add_argument('--max_epoch', type = int, default = 100000)
 argparser.add_argument('--debug', type = str, default = sys.argv[1:])
 args = argparser.parse_args()
 
@@ -109,14 +109,16 @@ Action_dim = dim
 print(Action_dim)
 
 ounoise = OUNoise(Action_dim, 8, 3, 0.9995)
-gsnoise = GaussNoise(5, 0.05, 0.9995)
+gsnoise = GaussNoise(2, 0.1, 0.99995)
 noise = gsnoise if args.noise_type == 'gauss' else ounoise
 
 # record the obj value and point at each iteration
 log_file = open('./general_' + str(args.agent) + '_' + str(args.obj) + '_' + '_' +  str(args.debug) + '.txt', 'w')     
+save_path = './record/general_' + str(args.obj) + str(args.agent)
 
 def play(agent, num_epoch, max_iter, test_count, show = False):
    
+    print('debug: ', args.debug)
     final_value = []
     for epoch in range(1):
 
@@ -157,7 +159,7 @@ def train(agent, Train_epoch, max_iter, file_name = './res.dat'):
     for epoch in range(Train_epoch):
 
         global env_train, env_test
-        env = env_train[epoch % num_train]
+        env = env_train[(epoch // 20) % num_train]
 
         pre_state = env.reset()
         acc_reward = 0
@@ -202,18 +204,22 @@ def train(agent, Train_epoch, max_iter, file_name = './res.dat'):
             elif args.obj == 'neural':
                 obj = NeuralNet(dim, env.func.X, env.func.Y, **kwargs)
 
-            cg_x, cg_y, _, cg_iter, _ = cg(obj, x0 = init_point, maxiter=max_iter)
+            cg_x, cg_y, _, cg_iter, _, _, _ = cg(obj, x0 = init_point, maxiter=max_iter, a_high=args.action_high)
             print('CG method: optimal value: {0}, iterations {1}'.format(cg_y, cg_iter))
-            sd_x, sd_y, _, sd_iter, _ = sd(obj, x0=init_point, maxiter=max_iter)
+            sd_x, sd_y, _, sd_iter, _, _ ,_ = sd(obj, x0=init_point, maxiter=max_iter, a_high=args.action_high)
             print('SD method: optimal value: {0}, iterations {1}'.format(sd_y, sd_iter))
-            bfgs_x, bfgs_y, _, bfgs_iter, _ = quasiNewton(obj, x0=init_point, maxiter=max_iter)
+            bfgs_x, bfgs_y, _, bfgs_iter, _, _ ,_ = quasiNewton(obj, x0=init_point, maxiter=max_iter, a_high=args.action_high)
             print('BFGS method: optimal value: {0}, iterations {1}'.format(bfgs_y, bfgs_iter))
 
-            if np.mean(np.array(final_value)) < -1.8:
+            if np.mean(np.array(final_value)) < min(cg_y, sd_y, bfgs_y):
                 print('----- using ', epoch, '  epochs')
                 #agent.save_model()
                 break
             time.sleep(1)
+
+            if epoch % 500 == 0 and epoch > 0:
+                path = save_path + str(epoch)
+                agent.save(path)
 
     return agent
             

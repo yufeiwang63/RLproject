@@ -15,7 +15,8 @@ class NAF():
     doc for naf
     '''
     def __init__(self, state_dim, action_dim, mem_size, train_batch_size, gamma, lr,
-                 action_low, action_high, tau, noise, flag = False, if_PER = False):
+                 action_low, action_high, tau, noise, flag = False, if_PER = False, 
+                 save_path = './record/NAF'):
         self.mem_size, self.train_batch_size = mem_size, train_batch_size
         self.gamma, self.lr = gamma, lr
         self.global_step = 0
@@ -137,5 +138,9 @@ class NAF():
         #return [np.clip(np.random.normal(action.item(), self.explore_rate), self.action_low, self.action_high)ac]
         #print(action.numpy()[0])
         return np.clip(action.cpu().numpy()[0] + noise, self.action_low, self.action_high)
+
+    def save(self, save_path = None):
+        path = save_path if save_path is not None else self.save_path
+        torch.save(self.policy_net.state_dict(), path + '_critic.txt')
     
     
