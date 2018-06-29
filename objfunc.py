@@ -133,13 +133,13 @@ class Quadratic(object):
 class Logistic(object):
     """ doc for Logistic """
     def __init__(self, dim, X, Y, lbd = 5e-4):
-        self.X = torch.tensor(X, dtype = torch.float)
-        self.Y = torch.tensor(Y, dtype = torch.float)
+        self.X = torch.tensor(X, dtype = torch.double)
+        self.Y = torch.tensor(Y, dtype = torch.double)
         self.dim = dim
         self.lbd = lbd
 
     def f(self, W):
-        W_torch = torch.tensor(W, dtype = torch.float, requires_grad = True)
+        W_torch = torch.tensor(W, dtype = torch.double, requires_grad = True)
         # val = - torch.mean(self.Y * torch.log(1 / (1 + (torch.exp(-torch.matmul(self.X, W_torch)))) + 1e-10) \
         #     + (1 - self.Y) * torch.log( 1e-10 + 1 - (1 / (1 + torch.exp(-torch.matmul(self.X, W_torch)))))) \
         #     + 0.5 * self.lbd * torch.sum(W_torch * W_torch)
@@ -149,7 +149,7 @@ class Logistic(object):
         return val.item()
 
     def g(self, W):
-        W_torch = torch.tensor(W, dtype = torch.float, requires_grad = True)
+        W_torch = torch.tensor(W, dtype = torch.double, requires_grad = True)
         # val = - torch.mean(self.Y * torch.log(1e-10 + 1 / (1 + (torch.exp(-torch.matmul(self.X, W_torch))))) \
         #     + (1 - self.Y) * torch.log(1e-10 + 1 - (1 / (1 + torch.exp(-torch.matmul(self.X, W_torch)))))) \
         #     + 0.5 * self.lbd * torch.sum(W_torch * W_torch)
@@ -164,8 +164,6 @@ class Ackley(object):
     """doc for Ackley function"""
     def __init__(self, dim = 2):
         self.dim = dim
-        self.X = torch.tensor(X, dtype = torch.float)
-        self.Y = torch.tensor(Y, dtype = torch.float)
 
     def f(self, x):
         x_ = x[0]
@@ -189,12 +187,12 @@ class NeuralNet(object):
     def __init__(self, dim, X, Y, d=2, h=2, p=2, lamda=.0005):
         super(NeuralNet, self).__init__()
         self.dim = dim
-        self.X = torch.tensor(X, dtype=torch.float)
+        self.X = torch.tensor(X, dtype=torch.double)
         self.Y = torch.tensor(Y, dtype=torch.long)
         self.arch = {'d' : d, 'h' : h, 'p' : p, 'lamda' : lamda} # network architecture parameters
 
     def f(self, param):
-        param = torch.tensor(param, dtype=torch.float, requires_grad=True)
+        param = torch.tensor(param, dtype=torch.double, requires_grad=True)
         d, h, p, lamda = self.arch['d'], self.arch['h'], self.arch['p'], self.arch['lamda']
 
         W = param[0 : h*d].view(h, d)
@@ -204,7 +202,11 @@ class NeuralNet(object):
 
         X, Y = self.X, self.Y
         fc1 = F.relu(torch.matmul(X, W) + b)
-        fc2 = torch.exp(torch.matmul(fc1, U) + c)
+        
+        temp = torch.matmul(fc1, U) + c
+        temp = temp - torch.mean(temp)
+        fc2 = torch.exp(temp)
+
         numerator = fc2.gather(1, Y.view(-1, 1)).squeeze()
         val = -torch.mean(torch.log(1e-6 + numerator / torch.sum(fc2, dim=1)))
         reg = (lamda / 2) * (torch.norm(W) ** 2 + torch.norm(U) ** 2)
@@ -213,7 +215,7 @@ class NeuralNet(object):
         return loss.item()
 
     def g(self, param):
-        param = torch.tensor(param, dtype=torch.float, requires_grad=True)
+        param = torch.tensor(param, dtype=torch.double, requires_grad=True)
         d, h, p, lamda = self.arch['d'], self.arch['h'], self.arch['p'], self.arch['lamda']
 
         W = param[0 : h*d].view(h, d)
@@ -223,7 +225,11 @@ class NeuralNet(object):
 
         X, Y = self.X, self.Y
         fc1 = F.relu(torch.matmul(X, W) + b)
-        fc2 = torch.exp(torch.matmul(fc1, U) + c)
+
+        temp = torch.matmul(fc1, U) + c
+        temp = temp - torch.mean(temp)
+        fc2 = torch.exp(temp)
+
         numerator = fc2.gather(1, Y.view(-1, 1)).squeeze()
         val = -torch.mean(torch.log(1e-6 + numerator / torch.sum(fc2, dim=1)))
         # print('val:', val)
