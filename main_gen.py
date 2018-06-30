@@ -29,12 +29,12 @@ from dataset import LogisticDataset, NeuralNetDataset
 
 ## parameters
 argparser = argparse.ArgumentParser(sys.argv[0])
-argparser.add_argument('--lr', type=float, default=1e-4)
+argparser.add_argument('--lr', type=float, default=1e-5)
 argparser.add_argument('--replay_size', type=int, default=50000)
 argparser.add_argument('--batch_size', type=int, default=128)
 argparser.add_argument('--gamma', type=float, default=1)
 argparser.add_argument('--tau', type=float, default=0.1)
-argparser.add_argument('--noise_type', type = str, default = 'gauss')
+argparser.add_argument('--noise_type', type = str, default = 'os')
 argparser.add_argument('--agent', type = str, default = 'ddpg')
 argparser.add_argument('--action_low', type = float, default = -0.1)
 argparser.add_argument('--action_high', type = float, default = 0.1)
@@ -43,7 +43,9 @@ argparser.add_argument('--window_size', type = int, default = 10)
 argparser.add_argument('--obj', type = str, default = 'neural')
 argparser.add_argument('--max_iter', type = int, default = 50)
 argparser.add_argument('--max_epoch', type = int, default = 100000)
+argparser.add_argument('--load_dir', type = str, default = None)
 argparser.add_argument('--debug', type = str, default = sys.argv[1:])
+argparser.add_argument('--print_every', type = int, default = 5)
 args = argparser.parse_args()
 
 ### the env
@@ -108,7 +110,7 @@ print(State_dim)
 Action_dim = dim
 print(Action_dim)
 
-ounoise = OUNoise(Action_dim, 8, 3, 0.9995)
+ounoise = OUNoise(Action_dim, 2, 0.5, 0.9995)
 gsnoise = GaussNoise(2, 0.1, 0.99995)
 noise = gsnoise if args.noise_type == 'gauss' else ounoise
 
@@ -185,7 +187,7 @@ def train(agent, Train_epoch, max_iter, file_name = './res.dat'):
             # agent.train(state_featurize.transfer(pre_state), action, reward, state_featurize.transfer(next_state), done)
             agent.train(pre_state, action, reward, next_state, done)
 
-            if done:
+            if done and epoch % args.print_every == 0:
                 #print('episode: ', epoch + 1, 'step: ', step + 1, ' reward is', acc_reward,  file = output_file)
                 #print('episode: ', epoch + 1, 'step: ', step + 1, ' reward is', acc_reward, )
                 print('episode: ', epoch + 1, 'step: ', step + 1, ' final value: ', env.get_value())
@@ -193,7 +195,7 @@ def train(agent, Train_epoch, max_iter, file_name = './res.dat'):
             
             pre_state = next_state
         
-        if epoch % 100 == 0 and epoch > 0:
+        if epoch % 100 == 0:
             test_count = epoch // 100
             final_value = play(agent, 1, max_iter, test_count)
             print('--------------episode ', epoch,  'final_value: ', final_value, '---------------', file = output_file)
@@ -222,6 +224,8 @@ def train(agent, Train_epoch, max_iter, file_name = './res.dat'):
 
             if epoch % 500 == 0 and epoch > 0:
                 path = save_path + str(epoch)
+                if args.load_dir is not None:
+                    path += 'reload_' + str(args.debug)
                 agent.save(path)
 
     return agent
@@ -243,7 +247,12 @@ cppo = PPO(State_dim, Action_dim,Action_low, Action_high, Replay_mem_size, Train
 if args.agent == 'naf':
     agent = train(naf, max_epoch, max_iter)
 elif args.agent == 'ddpg':
+    if args.load_dir is not None:
+        ddpg.critic_policy_net.load_state_dict(torch.load(args.load_dir + '_critic.txt'))
+        ddpg.actor_policy_net.load_state_dict(torch.load(args.load_dir + '_actor.txt'))
     agent = train(ddpg, max_epoch, max_iter)
+    
+
 elif args.agent == 'cac':
     agent = train(cac, max_epoch, max_iter)
 elif args.agent == 'ppo':

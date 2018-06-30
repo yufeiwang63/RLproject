@@ -50,6 +50,11 @@ class ObjectiveEnvironment(object):
 
     def step(self, update):
         self.nIterate += 1
+
+        action_norm = np.linalg.norm(update, ord=2)
+        gradient_norm = np.linalg.norm(self.func.g(self.currentIterate), ord=2)
+        reward = -np.sum(np.abs(gradient_norm - action_norm))
+
         self.currentIterate = self.currentIterate + update
 
         currentValue = self.func.f(self.currentIterate)
@@ -81,6 +86,8 @@ class ObjectiveEnvironment(object):
 
             if abs(self.historyChange[-2]) < 1e-8: # stopping criterion
                 done = True
+
+        reward -= currentValue
 
         currentState = np.concatenate((self.currentIterate, self.historyChange,
                                        self.historyGradient))
