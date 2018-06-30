@@ -29,15 +29,15 @@ from dataset import LogisticDataset, NeuralNetDataset
 
 ## parameters
 argparser = argparse.ArgumentParser(sys.argv[0])
-argparser.add_argument('--lr', type=float, default=1e-5)
+argparser.add_argument('--lr', type=float, default=1e-4)
 argparser.add_argument('--replay_size', type=int, default=50000)
 argparser.add_argument('--batch_size', type=int, default=128)
 argparser.add_argument('--gamma', type=float, default=1)
 argparser.add_argument('--tau', type=float, default=0.1)
-argparser.add_argument('--noise_type', type = str, default = 'os')
+argparser.add_argument('--noise_type', type = str, default = 'gauss')
 argparser.add_argument('--agent', type = str, default = 'ddpg')
-argparser.add_argument('--action_low', type = float, default = -0.1)
-argparser.add_argument('--action_high', type = float, default = 0.1)
+argparser.add_argument('--action_low', type = float, default = -0.2)
+argparser.add_argument('--action_high', type = float, default = 0.2)
 argparser.add_argument('--dim', type = int, default = 3)
 argparser.add_argument('--window_size', type = int, default = 10)
 argparser.add_argument('--obj', type = str, default = 'neural')
@@ -110,12 +110,12 @@ print(State_dim)
 Action_dim = dim
 print(Action_dim)
 
-ounoise = OUNoise(Action_dim, 2, 0.5, 0.9995)
-gsnoise = GaussNoise(2, 0.1, 0.99995)
+ounoise = OUNoise(Action_dim, 8, 0.5, 0.9995)
+gsnoise = GaussNoise(0.1, 0.02, 0.9995)
 noise = gsnoise if args.noise_type == 'gauss' else ounoise
 
 # record the obj value and point at each iteration
-log_file = open('./general_' + str(args.agent) + '_' + str(args.obj) + '_' + '_' +  str(args.debug) + '.txt', 'w')     
+log_file = open('./general_' + str(args.agent) + '_' + str(args.obj) + '_' + '.txt', 'w')     
 save_path = './record/general_' + str(args.obj) + str(args.agent)
 test_record = [[] for i in range(num_test)]
 
@@ -178,6 +178,7 @@ def train(agent, Train_epoch, max_iter, file_name = './res.dat'):
                 raise('nan error!')
 
             next_state, reward, done, _ = env.step(action)
+            reward *= step ** 0.2
             acc_reward += reward
             # print('next:', next_state)
 
@@ -216,16 +217,14 @@ def train(agent, Train_epoch, max_iter, file_name = './res.dat'):
             bfgs_x, bfgs_y, _, bfgs_iter, _, _ ,_ = quasiNewton(obj, x0=init_point, maxiter=max_iter, a_high=args.action_high)
             print('BFGS method: optimal value: {0}, iterations {1}'.format(bfgs_y, bfgs_iter))
 
-            if np.mean(np.array(final_value)) < min(cg_y, sd_y, bfgs_y):
-                print('----- using ', epoch, '  epochs')
-                #agent.save_model()
-                break
+            # if np.mean(np.array(final_value)) < min(cg_y, sd_y, bfgs_y):
+            #     print('----- using ', epoch, '  epochs')
+            #     #agent.save_model()
+            #     break
             time.sleep(1)
 
             if epoch % 500 == 0 and epoch > 0:
                 path = save_path + str(epoch)
-                if args.load_dir is not None:
-                    path += 'reload_' + str(args.debug)
                 agent.save(path)
 
     return agent
@@ -238,7 +237,7 @@ ddpg = DDPG(State_dim, Action_dim, Replay_mem_size, Train_batch_size,
              Gamma, Actor_Learning_rate, Critic_Learning_rate, Action_low, Action_high, Tau, noise, False) 
 
 cac = CAC(State_dim, Action_dim, Replay_mem_size, Train_batch_size,
-             Gamma, Actor_Learning_rate, Critic_Learning_rate,  Action_low, Action_high, Tau, False)
+             Gamma, Actor_Learning_rate, Critic_Learning_rate,  Action_low, Action_high, Tau, sigma=2, if_PER = False)
 
 cppo = PPO(State_dim, Action_dim,Action_low, Action_high, Replay_mem_size, Train_batch_size, Gamma, 
             Actor_Learning_rate, Critic_Learning_rate, Tau, trajectory_number=100, update_epoach=20)
@@ -251,12 +250,12 @@ elif args.agent == 'ddpg':
         ddpg.critic_policy_net.load_state_dict(torch.load(args.load_dir + '_critic.txt'))
         ddpg.actor_policy_net.load_state_dict(torch.load(args.load_dir + '_actor.txt'))
     agent = train(ddpg, max_epoch, max_iter)
-    
-
 elif args.agent == 'cac':
     agent = train(cac, max_epoch, max_iter)
 elif args.agent == 'ppo':
     agent = train(cppo, max_epoch, max_iter)
+else:
+    raise('Invalid Agent!')
 
 #print('after train')
 

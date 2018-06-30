@@ -34,8 +34,8 @@ class CAC():
         self.tau, self.if_PER= tau, if_PER
         self.state_dim, self.action_dim = state_dim, action_dim
         self.replay_mem = PERMemory(mem_size) if if_PER else SlidingMemory(mem_size)
-        # self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.device = 'cpu'
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # self.device = 'cpu'
         self.action_low, self.action_high = action_low, action_high
         self.actor_policy_net = CAC_a_fc_network(state_dim, action_dim, action_low, action_high, sigma, self.device).to(self.device)
         self.actor_target_net = CAC_a_fc_network(state_dim, action_dim, action_low, action_high, sigma, self.device).to(self.device)
@@ -91,7 +91,7 @@ class CAC():
         v_pred = self.critic_policy_net(pre_state_batch)
         
         if self.if_PER:
-            TD_error_batch = np.abs(v_target.numpy() - v_pred.detach().numpy())
+            TD_error_batch = np.abs(v_target.cpu().numpy() - v_pred.cpu().detach().numpy())
             self.replay_mem.update(idx_batch, TD_error_batch)
         
         self.critic_optimizer.zero_grad()

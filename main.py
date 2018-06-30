@@ -97,7 +97,7 @@ Action_dim = dim
 print(Action_dim)
 
 ounoise = OUNoise(Action_dim, 8, 1, 0.9999)
-gsnoise = GaussNoise(2, 0.4, 0.99995)
+gsnoise = GaussNoise(2, 1.5, 0.99995)
 noise = gsnoise if args.noise_type == 'gauss' else ounoise
 
 # record the test objective values of RL algorithms    
@@ -159,7 +159,7 @@ def train(agent, Train_epoch, Epoch_step):
                 raise('nan error!')
 
             next_state, reward, done, _ = env.step(action)
-            reward *= step ** 0.2
+            reward *= (step + 1) ** 0.2
             acc_reward += reward
             # print('next:', next_state)
 

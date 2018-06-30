@@ -22,15 +22,15 @@ def LogisticDataset(dim, num = 50,  seed = 666):
     X = np.zeros((num, dim))
 
     np.random.seed(seed)
-    co_var = np.random.rand(dim,dim)
+    co_var = np.random.rand(dim,dim) * 2
     co_var = co_var.dot(co_var.T)
-    mean = np.random.rand(dim)
+    mean = np.random.rand(dim) * 5
     X[:int(num / 2),:] = np.random.multivariate_normal(mean, co_var, size = int(num / 2))
 
     np.random.seed(seed * 2)
-    co_var = np.random.rand(dim,dim)
+    co_var = np.random.rand(dim,dim) * 2
     co_var = co_var.dot(co_var.T)
-    mean = np.random.rand(dim)
+    mean = np.random.rand(dim) * 5
     X[int(num / 2):,:] = np.random.multivariate_normal(mean, co_var, size = int(num / 2))
 
     X = np.concatenate((X, np.ones((num, 1))), axis = 1)
