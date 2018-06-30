@@ -8,9 +8,170 @@ Created on Sat Apr  7 16:43:56 2018
 import sklearn.pipeline
 import sklearn.preprocessing
 import numpy as np
-from sklearn.kernel_approximation import RBFSampler
 import random
+import matplotlib.pyplot as plt
+import objfunc as obj
+
+from sklearn.kernel_approximation import RBFSampler
 from collections import deque
+from dataset import LogisticDataset, NeuralNetDataset
+
+
+obj_list = ['ackley', 'logistic', 'neural']
+init_list = ['[7 8]', '[2.33 6.66]', '[ 0.01 10.  ]', '[0.         0.08333333 0.16666667 0.25       0.33333333 0.41666667? 0.5        0.58333333 0.66666667 0.75       0.83333333 0.91666667]']
+
+obj_idx = 1
+init_idx = 3
+
+filelist = ["./data/sd_%s3.txt"%(obj_list[obj_idx]),
+            "./data/mom_%s3.txt"%(obj_list[obj_idx]),
+            "./data/cg_%s3.txt"%(obj_list[obj_idx]),
+            "./data/bfgs_%s3.txt"%(obj_list[obj_idx]),
+            "./data/general_ddpg_logistic3.txt"]
+
+fig = 'value'
+
+dim = 1
+X, Y = LogisticDataset(dim=dim, seed=23)
+
+dim += 1
+init_point = np.arange(dim) / dim
+fun = obj.Logistic(dim, X, Y)
+
+def dataprocessing(filename):
+    avgnum = 7
+    linecnt = 0
+    linetot = avgnum * 2
+    n_iter = 50
+
+    mean = np.zeros(n_iter + 1)
+    std = np.zeros(n_iter + 1)
+    mean[0] = fun.f(init_point)
+    # traj = []
+
+    if 'sd' in filename or 'cg' in filename or 'bfgs' in filename or 'mom' in filename:
+        with open(filename, 'r') as file:
+            for line in file:
+                linecnt += 1
+                if linecnt % 2 == 1:
+                    mean[1:] = np.array(line.split(' '), dtype=float)
+                else:
+                    traj = np.array(line.replace(',', ' ').split(' ')[:-1], dtype=float)
+                    traj = traj.reshape((-1, dim)).T
+
+        return mean, std, traj
+
+    else:
+        with open(filename, 'r') as file:
+            for line in file:
+                linecnt += 1
+                if linecnt <= linetot - avgnum * 2:
+                    continue
+
+                if linecnt % 2 == 1:
+                    value = np.array(line.split(' '), dtype=float)
+                    mean[1:] = mean[1:] + value
+                    std[1:] = std[1:] + value ** 2
+
+                else:
+                    traj = np.array(line.replace(',', ' ').split(' ')[:-1], dtype=float)
+                    traj = traj.reshape((-1, dim)).T
+
+        mean[1:] = mean[1:] / avgnum
+        std[1:] = std[1:] / avgnum - mean[1:] ** 2
+        std[np.abs(std) < 1e-8] = 0
+        std = np.sqrt(std)
+        # print('mean = ', mean, 'std = ', std, 'traj = ', traj)
+        return mean, std, traj
+
+
+def plotvalue(filelist=None):
+    if type(filelist) == list:
+        values = []
+        for file in filelist:
+            values.append(dataprocessing(file))
+
+    if filelist is None:
+        values = np.array([np.sin(np.linspace(0, np.pi, 50)),
+                           np.cos(np.linspace(0, np.pi, 50)),
+                           np.sqrt(np.linspace(0, np.pi, 50))])
+
+    color = ['blue', 'brown', "red", "indigo", "green", "green"]
+    label = ['Gradient descent', 'Momentum', 'Conjugate gradient',
+             'L-BFGS algorithm', 'LTO with OU']
+
+    for k in range(len(label)):
+        n_iter = len(values[k][0])
+        x = np.arange(0, n_iter)
+
+        mean, std = values[k][0], values[k][1]
+        y_lower = mean - std * .5
+        y_upper = mean + std * .5
+        plt.plot(x, mean, label=label[k], color=color[k])
+        if k >= 4:
+            plt.fill_between(x, y_lower, y_upper, color=color[k], alpha=.35, linewidth=0)
+
+    plt.xlabel('Iteration')
+    plt.ylabel('Objective value')
+
+    legend = plt.legend(loc='upper right', shadow=True)#, fontsize='large')
+
+    plt.xticks(range(0, n_iter + 1, n_iter // 10))
+    # plt.show()
+    plt.savefig('./fig/logistic3_val.png')
+
+
+def plottraj(filelist=None):
+    if type(filelist) == list:
+        values = []
+        for file in filelist:
+            values.append(dataprocessing(file))
+
+    if filelist is None:
+        theta = np.arange(0, 2 * np.pi, np.pi / 50)
+        values = np.array([np.cos(theta), np.sin(theta)])
+
+    color = ['blue', 'brown', "red", "indigo", "green", "green"]
+    label = ['Gradient descent', 'Momentum', 'Conjugate gradient',
+             'L-BFGS algorithm', 'LTO with OU']
+
+    for k in range(len(label)):
+        n_iter = 50
+        traj = values[k][2]
+        x = traj[0, :-1]
+        y = traj[1, :-1]
+        # print(traj.shape)
+
+        if k == 0:
+            # Contour plot
+            X = np.linspace(-1.8, 3.8, n_iter)
+            Y = np.linspace(-4.8, 0.8, n_iter)
+            X, Y = np.meshgrid(X, Y)
+
+            Z = np.zeros((n_iter, n_iter))
+            for i in range(n_iter):
+                for j in range(n_iter):
+                    Z[i][j] = fun.f(np.array([X[i][j], Y[i][j]]))
+
+            plt.contourf(X, Y, Z, 50, cmap='GnBu')
+            plt.colorbar()
+
+        # Trajectory plot
+        u = traj[0, 1:] - traj[0, :-1]
+        v = traj[1, 1:] - traj[1, :-1]
+        # print(traj)
+        # print(u, v)
+
+        q = plt.quiver(x, y, u, v, units='xy', scale=1, color=color[k], headwidth=2)
+        plt.quiverkey(q, X = .13 + .52 * (k % 2), Y = 1.13 - .05 * (k // 2),
+                         U = .6, label=label[k], labelpos='E')
+
+    # Show plot
+    plt.axis('equal')
+    # plt.xticks(np.arange(np.min(x) - 1, np.max(x) + 1))
+    # plt.yticks(np.arange(np.min(y) - 1, np.max(y) + 1))
+    plt.show()
+    # plt.savefig('./fig/logistic3_traj.png')
 
 
 class Featurize_state():
@@ -227,11 +388,8 @@ class PERMemory():
     
         return (data_batch, idx_batch, p_batch)
         
-if __name__ == 'main':        
-    mymem = PERMemory(4)
-    
-    mymem.mem.add('a',1.1)
-    mymem.mem.add('b',2.2)
-    mymem.mem.add('c',3.34352245)
-    
-    print(mymem.sample(2))
+if __name__ == '__main__':      
+    if fig == 'value':
+        plotvalue(filelist)
+    else:
+        plottraj(filelist)
